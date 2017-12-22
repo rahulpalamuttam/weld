@@ -1,0 +1,67 @@
+|_inp0,_inp1,_inp2,_inp3|
+  (let obj102=(result(
+    for(
+      toVec(result(
+          for(
+            zip(
+              _inp0,
+              _inp1,
+              _inp2,
+              _inp3
+            ),
+            groupmerger[{i64,vec[i8]},{i64,vec[i8]}],
+            |b,i,e|
+              merge(b,{{e.$0,e.$1},{e.$2,e.$3}})
+          )
+        )),
+      appender[{{i64,vec[i8]},{i64,vec[i8]}}],
+      |b#13,i#11,x#4|
+        for(
+          slice(sort(x#4.$1, |x#5|
+              (x#5.$0*(i64((-1))))),(i64(0)),(i64(1000))),
+          b#13,
+          |b#14,i#12,x#8|
+            merge(b#14,{{x#4.$0.$0,x#4.$0.$1},{x#8.$0,x#8.$1}})
+        )
+    )
+  ));{result(
+    for(
+      obj102,
+      appender[i64](len(obj102)),
+      |b#15,i#13,x#10|
+        merge(b#15,x#10.$1.$0)
+    )
+  ),result(
+    for(
+      obj102,
+      appender[vec[i8]](len(obj102)),
+      |b#16,i#14,x#11|
+        merge(b#16,x#11.$1.$1)
+    )
+  ),result(
+    for(
+      obj102,
+      appender[i64](len(obj102)),
+      |b#17,i#15,x#12|
+        merge(b#17,x#12.$0.$0)
+    )
+  ),result(
+    for(
+      obj102,
+      appender[vec[i8]](len(obj102)),
+      |b#18,i#16,x#13|
+        merge(b#18,x#13.$0.$1)
+    )
+  )})
+
+Size of names: 84539200
+Python->Weld: 0.427760124207
+Weld compile time: 0.20606803894
+Weld: 2.71177816391
+Weld->Python: 0.0254800319672
+Python->Weld: 0.0136649608612
+Weld compile time: 0.547783851624
+Weld: 0.0152130126953
+Weld->Python: 0.000362157821655
+Time taken by preprocess portion: 9.23375
+Time taken by analysis portion  : 0.59786

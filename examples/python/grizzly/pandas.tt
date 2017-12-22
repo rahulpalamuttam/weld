@@ -1,0 +1,41 @@
+pandas
+1
+Size of names: 84539200
+Time taken by preprocess portion:   19.46045
+Time taken by analysis portion  :   0.02734
+2
+Size of names: 84539200
+Time taken by preprocess portion:   19.20619
+Time taken by analysis portion  :   0.02708
+3
+Size of names: 84539200
+Time taken by preprocess portion:   19.44719
+Time taken by analysis portion  :   0.02713
+4
+Size of names: 84539200
+Time taken by preprocess portion:   19.89460
+Time taken by analysis portion  :   0.02752
+5:
+Size of names: 84539200
+Time taken by preprocess portion:   19.23397
+Time taken by analysis portion  :   0.02704
+1
+Size of names: 84539200
+Time taken by preprocess portion:   19.23724
+Time taken by analysis portion  :   0.02697
+2
+Size of names: 84539200
+Time taken by preprocess portion:   19.19272
+Time taken by analysis portion  :   0.02708
+3
+Size of names: 84539200
+Time taken by preprocess portion:   19.10892
+Time taken by analysis portion  :   0.02692
+4
+Size of names: 84539200
+Time taken by preprocess portion:   19.42380
+Time taken by analysis portion  :   0.02719
+5:
+Size of names: 84539200
+Time taken by preprocess portion:   19.19741
+Time taken by analysis portion  :   0.02692

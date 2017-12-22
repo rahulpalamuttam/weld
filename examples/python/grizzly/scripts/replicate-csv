@@ -7,6 +7,7 @@ import random
 def transformCSV_birth_analysis(inputFile, outputFile, replicationFactor):
     years = [str(i) for i in range(0, 1000 * replicationFactor)]
     gender = [str(i) for i in range(0, 4)]
+    file_year = inputFile.split("/")[-1][3:7]
     with open(inputFile, 'r') as f1, open(outputFile, 'w') as f2:
         lineId = 0
         numCols = 0
@@ -20,13 +21,14 @@ def transformCSV_birth_analysis(inputFile, outputFile, replicationFactor):
 
             for factor in range(0, replicationFactor):
                 count += 1
-                new_year = years[count % len(years)]
+                #                new_year = years[count % len(years)]
+                new_year = file_year
                 # This is a hack. We need to get to the bottom of pandas ordering on sorts
                 # which is causing grizzly to include "Leslyn" when pandas does not
                 # for birth analysis (sort on groupmerger).
-                num_diff = str(int(line_ele_list[2]) + count)
+                #num_diff = str(int(line_ele_list[2]) + count)
                 new_gender = gender[count % len(gender)]
-                new_line_list = [new_year, line_ele_list[0], line_ele_list[1], num_diff]
+                new_line_list = [new_year, line_ele_list[0], line_ele_list[1], line_ele_list[2]]
                 f2.write(','.join(new_line_list))
                 f2.write('\n')
         lineId += 1

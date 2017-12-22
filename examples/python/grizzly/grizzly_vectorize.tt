@@ -1,0 +1,61 @@
+grizzly vectorize
+1
+Size of names: 84539200
+Python->Weld: 1.95247888565
+Weld compile time: 0.201511144638
+Weld: 13.5013659
+Weld->Python: 0.013396024704
+Python->Weld: 0.0148861408234
+Weld compile time: 0.529184103012
+Weld: 0.0227839946747
+Weld->Python: 0.000334024429321
+Time taken by preprocess portion: 21.46507
+Time taken by analysis portion  : 0.58231
+2
+Size of names: 84539200
+Python->Weld: 2.05234718323
+Weld compile time: 0.206595182419
+Weld: 13.4977500439
+Weld->Python: 0.0132529735565
+Python->Weld: 0.0148780345917
+Weld compile time: 0.5379550457
+Weld: 0.0230760574341
+Weld->Python: 0.000364065170288
+Time taken by preprocess portion: 21.58357
+Time taken by analysis portion  : 0.59151
+3
+Size of names: 84539200
+Python->Weld: 1.99338102341
+Weld compile time: 0.205373048782
+Weld: 13.4613831043
+Weld->Python: 0.0132329463959
+Python->Weld: 0.0139009952545
+Weld compile time: 0.527741909027
+Weld: 0.0252120494843
+Weld->Python: 0.000359058380127
+Time taken by preprocess portion: 21.46663
+Time taken by analysis portion  : 0.58258
+4
+Size of names: 84539200
+Python->Weld: 1.99403095245
+Weld compile time: 0.203365087509
+Weld: 13.4941680431
+Weld->Python: 0.0131340026855
+Python->Weld: 0.0148720741272
+Weld compile time: 0.525613069534
+Weld: 0.0228569507599
+Weld->Python: 0.000331878662109
+Time taken by preprocess portion: 21.52000
+Time taken by analysis portion  : 0.57880
+5:
+Size of names: 84539200
+Python->Weld: 2.01162600517
+Weld compile time: 0.204420089722
+Weld: 13.5031170845
+Weld->Python: 0.0131988525391
+Python->Weld: 0.0159819126129
+Weld compile time: 0.56897687912
+Weld: 0.0230240821838
+Weld->Python: 0.000369071960449
+Time taken by preprocess portion: 21.55933
+Time taken by analysis portion  : 0.62364

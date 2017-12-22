@@ -49,7 +49,7 @@ static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 
 /// The default grain size for the parallel runtime.
 static DEFAULT_INNER_GRAIN_SIZE: i32 = 16384;
-static DEFAULT_OUTER_GRAIN_SIZE: i32 = 4096;
+static DEFAULT_OUTER_GRAIN_SIZE: i32 = 1;
 
 /// A wrapper for a struct passed as input to the Weld runtime.
 #[derive(Clone, Debug)]
@@ -134,7 +134,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("Uniquify outside Passes".to_string(), uniquify_dur));
 
     debug!("Optimized Weld program:\n{}\n", print_expr(&expr));
-
+    println!("{ }", print_expr(&expr));
     let start = PreciseTime::now();
     let mut sir_prog = sir::ast_to_sir(&expr, conf.support_multithread)?;
     let end = PreciseTime::now();

@@ -1,0 +1,61 @@
+grizzly predication parallel
+1
+Size of names: 84539200
+Python->Weld: 0.426599979401
+Weld compile time: 0.204282045364
+Weld: 2.69272494316
+Weld->Python: 0.0256469249725
+Python->Weld: 0.00331592559814
+Weld compile time: 0.554128170013
+Weld: 0.0142948627472
+Weld->Python: 0.000375032424927
+Time taken by preprocess portion: 9.18398
+Time taken by analysis portion  : 0.59334
+2
+Size of names: 84539200
+Python->Weld: 0.511669874191
+Weld compile time: 0.206455945969
+Weld: 2.78708100319
+Weld->Python: 0.0257930755615
+Python->Weld: 0.0154268741608
+Weld compile time: 0.545212984085
+Weld: 0.0360989570618
+Weld->Python: 0.000355005264282
+Time taken by preprocess portion: 9.39362
+Time taken by analysis portion  : 0.61839
+3
+Size of names: 84539200
+Python->Weld: 0.427006959915
+Weld compile time: 0.210712194443
+Weld: 2.59585404396
+Weld->Python: 0.0255830287933
+Python->Weld: 0.0157980918884
+Weld compile time: 0.590605974197
+Weld: 0.015725851059
+Weld->Python: 0.000377893447876
+Time taken by preprocess portion: 9.13730
+Time taken by analysis portion  : 0.64343
+4
+Size of names: 84539200
+Python->Weld: 0.36682510376
+Weld compile time: 0.213441133499
+Weld: 2.65240097046
+Weld->Python: 0.0261518955231
+Python->Weld: 0.016294002533
+Weld compile time: 0.569059848785
+Weld: 0.0159311294556
+Weld->Python: 0.000343084335327
+Time taken by preprocess portion: 9.15272
+Time taken by analysis portion  : 0.62254
+5:
+Size of names: 84539200
+Python->Weld: 0.502501010895
+Weld compile time: 0.25810790062
+Weld: 2.67905592918
+Weld->Python: 0.0257060527802
+Python->Weld: 0.0193748474121
+Weld compile time: 0.555152893066
+Weld: 0.032007932663
+Weld->Python: 0.000361919403076
+Time taken by preprocess portion: 9.35629
+Time taken by analysis portion  : 0.62825
