@@ -5,6 +5,7 @@ use easy_ll;
 
 extern crate time;
 extern crate fnv;
+extern crate rand;
 
 use time::PreciseTime;
 
@@ -3033,10 +3034,10 @@ impl LlvmGenerator {
                 // Required for result calls.
                 self.gen_eq(kt)?;
                 self.gen_cmp(kt)?;
-
+		let xs = rand::random::<u8>();	
                 let groupmerger_def = format!(include_str!("resources/groupbuilder.ll"),
                     NAME=&function_id.replace("%", ""),
-		    DICTTY=&bld_ty_str.replace("%", ""),
+		    DICTTY=&(bld_ty_str.replace("%",  "") + &format!("{ }", xs)),
                     KEY_PREFIX=&key_prefix,
                     KEY=&key_ty,
                     VALUE_VEC_PREFIX=&value_vec_prefix,
@@ -3047,7 +3048,6 @@ impl LlvmGenerator {
                     KV_VEC=&kv_vec_ty,
                     DICT_PREFIX=&dict_prefix,
                     DICT=&bld_ty_str);
-
                 self.prelude_code.add(&groupmerger_def);
                 let res_ty_str = self.llvm_type(&res_ty)?;
                 let bld_tmp = self.gen_load_var(llvm_symbol(builder).as_str(), &kv_vec_builder_ty, ctx)?;
@@ -3055,8 +3055,8 @@ impl LlvmGenerator {
                 ctx.code.add(format!("{} = call {} @{}.{}({} {})",
                                       res_tmp,
                                       bld_ty_str,
-				      bld_ty_str.replace("%", ""),
-				      func_str.replace("@", ""),	
+				      bld_ty_str.replace("%",  "") + &format!("{:?}", xs),
+				      func_str.replace("@", ""),
                                       kv_vec_builder_ty,
                                       bld_tmp));
                 self.gen_store_var(&res_tmp, &llvm_symbol(output), &res_ty_str, ctx);

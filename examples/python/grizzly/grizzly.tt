@@ -1,0 +1,56 @@
+grizzly
+1
+Python->Weld: 0.0439229011536
+Weld compile time: 0.256431818008
+Weld: 13.9330470562
+Weld->Python: 13.503592968
+Time to merge: 51.314095974
+Python->Weld: 1.30901694298
+Weld compile time: 0.402709007263
+Weld: 29.9319880009
+Weld->Python: 0.000282049179077
+Time for analysis: 45.1964478493
+2
+Python->Weld: 0.0886890888214
+Weld compile time: 0.256007909775
+Weld: 13.6645958424
+Weld->Python: 13.4583749771
+Time to merge: 50.5374331474
+Python->Weld: 1.2840681076
+Weld compile time: 0.401564836502
+Weld: 29.9078369141
+Weld->Python: 0.000295877456665
+Time for analysis: 44.9256131649
+3
+Python->Weld: 0.0410721302032
+Weld compile time: 0.247722864151
+Weld: 13.3842689991
+Weld->Python: 13.2703480721
+Time to merge: 49.6591808796
+Python->Weld: 1.26584601402
+Weld compile time: 0.392706155777
+Weld: 29.7125020027
+Weld->Python: 0.000293016433716
+Time for analysis: 44.6334979534
+4
+Python->Weld: 0.0402312278748
+Weld compile time: 0.286347866058
+Weld: 13.4418830872
+Weld->Python: 13.3960189819
+Time to merge: 50.008095026
+Python->Weld: 1.27092504501
+Weld compile time: 0.39267706871
+Weld: 29.9479091167
+Weld->Python: 0.00028395652771
+Time for analysis: 44.8408069611
+5:
+Python->Weld: 0.0444021224976
+Weld compile time: 0.253787994385
+Weld: 13.7816569805
+Weld->Python: 13.5327320099
+Time to merge: 50.9606659412
+Python->Weld: 1.31818699837
+Weld compile time: 0.405358076096
+Weld: 29.6566169262
+Weld->Python: 0.000277042388916
+Time for analysis: 44.9070980549

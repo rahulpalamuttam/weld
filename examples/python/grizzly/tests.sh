@@ -14,72 +14,72 @@ NUM_ITERATIONS=5
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> grizzly.tt
-	 python birth_analysis_grizzly.py >> grizzly.tt
+	 python movielens_grizzly.py >> grizzly.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> grizzly_infer_length.tt
-	 python birth_analysis_grizzly_infer_length.py >> grizzly_infer_length.tt
+	 python movielens_grizzly_infer_length.py >> grizzly_infer_length.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> grizzly_predication.tt
-	 python birth_analysis_grizzly_predication.py >> grizzly_predication.tt
+	 python movielens_grizzly_predication.py >> grizzly_predication.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> grizzly_vectorize.tt
-	 python birth_analysis_grizzly_vectorize.py >> grizzly_vectorize.tt
+	 python movielens_grizzly_vectorize.py >> grizzly_vectorize.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> grizzly_loop_fusion.tt
-	 python birth_analysis_grizzly_loop_fusion.py >> grizzly_loop_fusion.tt
+	 python movielens_grizzly_loop_fusion.py >> grizzly_loop_fusion.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
 	 echo $i >> pandas.tt
-	 python birth_analysis.py >> pandas.tt
+	 python movielens.py >> pandas.tt
 done
 
-export WELD_NUM_THREADS=8
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> grizzly8.tt
-	 python birth_analysis_grizzly.py >> grizzly8.tt
-done
+# export WELD_NUM_THREADS=8
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> grizzly8.tt
+# 	 python movielens_grizzly.py >> grizzly8.tt
+# done
 
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> grizzly_infer_length8.tt
-	 python birth_analysis_grizzly_infer_length.py >> grizzly_infer_length8.tt
-done
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> grizzly_infer_length8.tt
+# 	 python movielens_grizzly_infer_length.py >> grizzly_infer_length8.tt
+# done
 
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> grizzly_predication8.tt
-	 python birth_analysis_grizzly_predication.py >> grizzly_predication8.tt
-done
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> grizzly_predication8.tt
+# 	 python movielens_grizzly_predication.py >> grizzly_predication8.tt
+# done
 
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> grizzly_vectorize8.tt
-	 python birth_analysis_grizzly_vectorize.py >> grizzly_vectorize8.tt
-done
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> grizzly_vectorize8.tt
+# 	 python movielens_grizzly_vectorize.py >> grizzly_vectorize8.tt
+# done
 
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> grizzly_loop_fusion8.tt
-	 python birth_analysis_grizzly_loop_fusion.py >> grizzly_loop_fusion8.tt
-done
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> grizzly_loop_fusion8.tt
+# 	 python movielens_grizzly_loop_fusion.py >> grizzly_loop_fusion8.tt
+# done
 
-for i in $(seq "$NUM_ITERATIONS"):
-do
-	 echo $i >> pandas.tt
-	 python birth_analysis.py >> pandas.tt
-done
+# for i in $(seq "$NUM_ITERATIONS"):
+# do
+# 	 echo $i >> pandas.tt
+# 	 python movielens.py >> pandas.tt
+# done

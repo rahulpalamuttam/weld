@@ -2,6 +2,7 @@ import pandas as pd
 import grizzly.grizzly as gr
 import time
 
+passes = ["loop-fusion", "infer-size", "short-circuit-booleans", "vectorize", "fix-iterate"]
 
 # Make display smaller
 pd.options.display.max_rows = 10
@@ -23,7 +24,7 @@ ratings = gr.DataFrameWeld(ratings)
 users = gr.DataFrameWeld(users)
 movies = gr.DataFrameWeld(movies)
 
-data = gr.merge(gr.merge(ratings, users), movies).evaluate(True).to_pandas()
+data = gr.merge(gr.merge(ratings, users), movies).evaluate(True, passes=passes).to_pandas()
 print "Time to merge:", (time.time() - start)
 start = time.time()
 data = gr.DataFrameWeld(data)
@@ -39,7 +40,7 @@ sorted_by_diff = mean_ratings.sort_values(by='diff')
 rating_std_by_title = data.groupby('title')['rating'].std()
 
 rating_std_by_title = rating_std_by_title.loc[active_titles]
-rating_std_by_title.sort_values(ascending=False)[0:10].evaluate(True)
+rating_std_by_title.sort_values(ascending=False)[0:10].evaluate(True, passes=passes)
 end = time.time()
 
 print "Time for analysis:", (end - start)

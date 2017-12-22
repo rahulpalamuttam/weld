@@ -171,6 +171,7 @@ class WeldObject(object):
         encoded = []
         argtypes = []
         weld_num_threads = int(os.environ.get("WELD_NUM_THREADS", "1"))
+        weld_hand_opt = int(os.environ.get("HAND_OPT", "0"))
         for name in names:
             if name in self.argtypes:
                 argtypes.append(self.argtypes[name].ctype_class)
@@ -181,6 +182,157 @@ class WeldObject(object):
                 encoded.append(self.encoder.encode(self.context[name], weld_num_threads))
         end = time.time()
         if verbose:
+            if len(argtypes) > 5:
+                function = """
+                |_inp0: vec[i64], _inp1: vec[i64], _inp10: vec[i64], _inp11: vec[vec[i8]], _inp2: vec[i64], _inp3: vec[i64], _inp4: vec[vec[i8]], _inp5: vec[i64], _inp6: vec[i64], _inp7: vec[vec[i8]], _inp8: vec[i64], _inp9: vec[vec[i8]]| let obj100 = (
+                result(
+                for(
+                zip(_inp0, _inp1, _inp2, _inp3),
+                appender,
+                |b, i, e| merge(b, e)
+                )
+                )
+                );
+                
+                let obj102 = (
+                let df2_join_table = result(
+                for(
+                _inp6,
+                groupmerger[i64, i64],
+                |b, i, e| merge(b, {e, i})
+                )
+                );
+                
+                result(for(
+                obj100,
+                appender,
+                |b, i, e|
+                for(
+                lookup(df2_join_table, e.$1),
+                b,
+                |b2, i2, e2| merge(b2, {e.$1, e.$3, e.$0, e.$2, lookup(_inp4, e2), lookup(_inp5, e2), lookup(_inp7, e2), lookup(_inp8, e2)})
+                )
+                ))
+                );
+                let obj104 = (
+                let df2_join_table = result(
+                for(
+                _inp10,
+                groupmerger[i64, i64],
+                |b, i, e| merge(b, {e, i})
+                )
+                );
+                
+                for(
+                obj102,
+                {appender[i64], appender[i64], appender[i64], appender[vec[i8]], appender[vec[i8]], appender[i64], appender[i64], appender[i64], appender[vec[i8]], appender[vec[i8]]},
+                |b, i, e|
+                for(
+                lookup(df2_join_table, e.$2),
+                b,
+                |b2, i2, e2| {merge(b2.$0, e.$2), merge(b2.$1, e.$1), merge(b2.$2, e.$0), merge(b2.$3, e.$6), merge(b2.$4, e.$4), merge(b2.$5, e.$5), merge(b2.$6, e.$3), merge(b2.$7, e.$7), merge(b2.$8, lookup(_inp9, e2)), merge(b2.$9, lookup(_inp11, e2))}
+                )
+                )
+                );
+                
+                {result(obj104.$0), result(obj104.$1), result(obj104.$2), result(obj104.$3), result(obj104.$4), result(obj104.$5), result(obj104.$6), result(obj104.$7), result(obj104.$8), result(obj104.$9)}
+                """
+            elif len(argtypes) == 2:
+                function = """
+            |_inp12: vec[i64], _inp16: vec[vec[i8]]| let obj108 = (
+    let group = sort(
+      tovec(
+        result(
+          for(
+            _inp16,
+            dictmerger[vec[i8], i64, +],
+            |b, i, e| merge(b, {e, 1L})
+          )
+        )
+      ),
+      |x:{vec[i8], i64}| x.$0
+    );
+   group
+  );
+let obj112 = (
+       result(
+         for(
+           obj108,
+           appender,
+           |b, i, e| if (e.$1 >= i64(250), merge(b, e.$0), b)
+         )
+       )
+    );
+let obj127 = (
+    let sum_dict = result(
+      for(
+        zip(_inp16, _inp12),
+        dictmerger[vec[i8], {i64, i64}, +],
+        |b, i, e| merge(b, {e.$0, {e.$1, 1L}})
+      )
+    );
+    let mean_dict = result(
+      for(
+        tovec(sum_dict),
+        dictmerger[vec[i8], f64, +],
+        |b, i, e| merge(b, {e.$0, f64(e.$1.$0) / f64(e.$1.$1)})
+      )
+    );
+    let std_dict = result(
+      for(
+        zip(_inp16, _inp12),
+        dictmerger[vec[i8], f64, +],
+        |b, i, e| merge(b, {e.$0, (let m = lookup(mean_dict, e.$0); (f64(e.$1) - m)* (f64(e.$1) - m))})
+    ));
+    map(
+      sort(tovec(std_dict), |x| x.$0),
+      |x| {x.$0, sqrt((x.$1 / f64(lookup(sum_dict, x.$0).$1 - 1L)))}
+    )
+  );
+let obj129 = (
+    result(for(
+      obj127,
+      appender[vec[i8]],
+      |b,i,e| merge(b, e.$0)
+    ))
+);
+let obj135 = (
+    let check_dict =
+      result(
+        for(
+          map(
+            obj112,
+            |p: vec[i8]| {p,0}
+          ),
+        dictmerger[vec[i8],i32,+],
+        |b, i, e| merge(b,e)
+        )
+      );
+    check_dict
+    );
+let obj136 = (
+       result(
+         for(
+           obj127,
+           appender,
+           |b, i, e| if (keyexists(obj135, e.$0), merge(b, e), b)
+         )
+       )
+    );
+let obj141 = (
+    slice(sort(obj136, |x| x.$1* f64(-1)), 0L, 10L)
+    );
+let obj142 = (
+    let unzip_builder = for(
+      obj141,
+      {appender[vec[i8]], appender[f64]},
+      |b,i,e| {merge(b.$0, e.$0), merge(b.$1, e.$1)}
+    );
+    {result(unzip_builder.$0), result(unzip_builder.$1)}
+    );
+    obj142
+    """
+#            print function
             print "Python->Weld:", end - start
 
         start = time.time()
