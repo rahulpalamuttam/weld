@@ -1,44 +1,57 @@
 echo "pandas" > pandas.tt
-echo "grizzly" > grizzly.tt
-echo "grizzly infer_length" > grizzly_infer_length.tt
-echo "grizzly prediaction" > grizzly_predication.tt
-echo "grizzly vectorize" > grizzly_vectorize.tt
-echo "grizzly loop fusion" > grizzly_loop_fusion.tt
+# echo "grizzly_clo" > grizzly_clo.tt
+# echo "grizzly_clo infer_length" > grizzly_clo_infer_length.tt
+# echo "grizzly_clo prediaction" > grizzly_clo_predication.tt
+# echo "grizzly_clo vectorize" > grizzly_clo_vectorize.tt
+# echo "grizzly_clo loop fusion" > grizzly_clo_loop_fusion.tt
 
-echo "grizzly parallel" > grizzly8.tt
-echo "grizzly infer_length parallel" > grizzly_infer_length8.tt
-echo "grizzly predication parallel" > grizzly_predication8.tt
-echo "grizzly vectorize parallel" > grizzly_vectorize8.tt
-echo "grizzly loop fusion parallel" > grizzly_loop_fusion8.tt
+# echo "grizzly_clo parallel" > grizzly_clo8.tt
+# echo "grizzly_clo infer_length parallel" > grizzly_clo_infer_length8.tt
+# echo "grizzly_clo predication parallel" > grizzly_clo_predication8.tt
+# echo "grizzly_clo vectorize parallel" > grizzly_clo_vectorize8.tt
+# echo "grizzly_clo loop fusion parallel" > grizzly_clo_loop_fusion8.tt
+
+echo "grizzly_clo clo" > grizzly_clo.tt
+echo "grizzly_clo infer_length clo" > grizzly_clo_infer_length.tt
+echo "grizzly_clo predication clo" > grizzly_clo_predication.tt
+echo "grizzly_clo vectorize clo" > grizzly_clo_vectorize.tt
+echo "grizzly_clo loop fusion clo" > grizzly_clo_loop_fusion.tt
+
+echo "grizzly_clo parallel clo" > grizzly_clo8.tt
+echo "grizzly_clo infer_length parallel clo" > grizzly_clo_infer_length8.tt
+echo "grizzly_clo predication parallel clo" > grizzly_clo_predication8.tt
+echo "grizzly_clo vectorize parallel clo" > grizzly_clo_vectorize8.tt
+echo "grizzly_clo loop fusion parallel clo" > grizzly_clo_loop_fusion8.tt
+
 NUM_ITERATIONS=5
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly.tt
-	 python birth_analysis_grizzly.py >> grizzly.tt
+	 echo $i >> grizzly_clo.tt
+	 python birth_analysis_grizzly_clo.py >> grizzly_clo.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_infer_length.tt
-	 python birth_analysis_grizzly_infer_length.py >> grizzly_infer_length.tt
+	 echo $i >> grizzly_clo_infer_length.tt
+	 python birth_analysis_grizzly_clo_infer_length.py >> grizzly_clo_infer_length.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_predication.tt
-	 python birth_analysis_grizzly_predication.py >> grizzly_predication.tt
+	 echo $i >> grizzly_clo_predication.tt
+	 python birth_analysis_grizzly_clo_predication.py >> grizzly_clo_predication.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_vectorize.tt
-	 python birth_analysis_grizzly_vectorize.py >> grizzly_vectorize.tt
+	 echo $i >> grizzly_clo_vectorize.tt
+	 python birth_analysis_grizzly_clo_vectorize.py >> grizzly_clo_vectorize.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_loop_fusion.tt
-	 python birth_analysis_grizzly_loop_fusion.py >> grizzly_loop_fusion.tt
+	 echo $i >> grizzly_clo_loop_fusion.tt
+	 python birth_analysis_grizzly_clo_loop_fusion.py >> grizzly_clo_loop_fusion.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
@@ -50,32 +63,32 @@ done
 export WELD_NUM_THREADS=8
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly8.tt
-	 python birth_analysis_grizzly.py >> grizzly8.tt
+	 echo $i >> grizzly_clo8.tt
+	 python birth_analysis_grizzly_clo.py >> grizzly_clo8.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_infer_length8.tt
-	 python birth_analysis_grizzly_infer_length.py >> grizzly_infer_length8.tt
+	 echo $i >> grizzly_clo_infer_length8.tt
+	 python birth_analysis_grizzly_clo_infer_length.py >> grizzly_clo_infer_length8.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_predication8.tt
-	 python birth_analysis_grizzly_predication.py >> grizzly_predication8.tt
+	 echo $i >> grizzly_clo_predication8.tt
+	 python birth_analysis_grizzly_clo_predication.py >> grizzly_clo_predication8.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_vectorize8.tt
-	 python birth_analysis_grizzly_vectorize.py >> grizzly_vectorize8.tt
+	 echo $i >> grizzly_clo_vectorize8.tt
+	 python birth_analysis_grizzly_clo_vectorize.py >> grizzly_clo_vectorize8.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):
 do
-	 echo $i >> grizzly_loop_fusion8.tt
-	 python birth_analysis_grizzly_loop_fusion.py >> grizzly_loop_fusion8.tt
+	 echo $i >> grizzly_clo_loop_fusion8.tt
+	 python birth_analysis_grizzly_clo_loop_fusion.py >> grizzly_clo_loop_fusion8.tt
 done
 
 for i in $(seq "$NUM_ITERATIONS"):

@@ -4,7 +4,7 @@ import numpy as np
 import time
 import sys
 
-passes = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "vectorize", "fix-iterate"]
+passes = ["loop-fusion", "infer-size", "short-circuit-booleans", "vectorize", "fix-iterate"]
 years = range(1880, 2011)
 pieces = []
 columns = ['year', 'name', 'sex', 'births']
@@ -38,8 +38,11 @@ top1000 = gr.DataFrameWeld(top1000)
 top1000names = top1000['name']
 all_names = top1000names.unique()
 lesley_like = all_names.filter(all_names.lower().contains('lesl'))
+lesley_like_names = top1000names.isin(lesley_like).evaluate(True, passes=passes)
+lesley_like_names = gr.SeriesWeld(lesley_like_names.values, gr.WeldVec(gr.WeldBit()))
 
-filtered = top1000.filter(top1000names.isin(lesley_like))
+filtered = top1000.filter(lesley_like_names)
+
 table = filtered.pivot_table('births', index='year',
                               columns='sex', aggfunc='sum')
 

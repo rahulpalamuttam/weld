@@ -10,12 +10,12 @@ pieces = []
 # This introduced more years and hence more keys
 # when performing the groupby.
 # The replications scripts show how this was done.
-#columns = ['year', 'name', 'sex', 'births']
-columns = ['name', 'sex', 'births']
+columns = ['year', 'name', 'sex', 'births']
+#columns = ['name', 'sex', 'births']
 for year in years:
-    path = 'data/names/yob%d.txt' % year
+    path = 'data/ml-50m/yob%d.txt' % year
     frame = pd.read_csv(path, names=columns)
-    frame['year'] = year
+    #frame['year'] = year
     pieces.append(frame)
 
 # Concatenate everything into a single DataFrame
@@ -46,7 +46,7 @@ table = filtered.pivot_table('births', index='year',
 
 table = table.div(table.sum(1), axis=0)
 end1 = time.time()
-print table
+#print table
 
 
 print "Time taken by preprocess portion:   %.5f" % (end0 - start0)
