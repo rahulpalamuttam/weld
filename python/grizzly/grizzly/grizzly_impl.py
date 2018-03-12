@@ -717,6 +717,7 @@ def join(expr1, expr2, d1_keys, d2_keys, keys_type, d1_vals, df1_vals_ty, d2_val
                                           "df2key":d2_key_struct,
                                           "df2vals":d2_val_struct,
                                           "df2vals2":d2_val_fields2}
+    
     return weld_obj
 
 def pivot_table(expr, value_index, value_ty, index_index, index_ty, columns_index, columns_ty, aggfunc):
@@ -811,7 +812,7 @@ def get_pivot_column(pivot, column_name, column_type):
                                           "colnm":column_name_var}
     return weld_obj
 
-def pivot_sort(pivot, column_name, column_type, pivot_type):
+def pivot_sort(pivot, column_name, index_type, column_type, pivot_type):
     weld_obj = WeldObject(encoder_, decoder_)
 
     pivot_var = weld_obj.update(pivot)
@@ -824,12 +825,9 @@ def pivot_sort(pivot, column_name, column_type, pivot_type):
         column_name_var = column_name.obj_id
         weld_obj.dependencies[column_name_var] = column_name
 
+        # Note the key_column is hardcoded for the movielens workload
+        # diff is located at the 2nd index.
     weld_template = """
-      let col_dict = result(for(
-        %(piv)s.$2,
-        dictmerger[%(cty)s,i64,+],
-        |b, i, e| merge(b, {e, i})
-      ));
       let key_col = lookup(%(piv)s.$1, 2L);
       let sorted_indices = map(
         sort(
@@ -854,11 +852,19 @@ def pivot_sort(pivot, column_name, column_type, pivot_type):
           )
         )
       );
-    {%(piv)s.$0, new_piv, %(piv)s.$2}
+      let new_index = result(
+        for(
+          %(piv)s.$0,
+          appender[%(idty)s],
+          |b,i,e| merge(b, lookup(%(piv)s.$0, lookup(sorted_indices, i)))
+        )
+      );
+    {new_index, new_piv, %(piv)s.$2}
     """
 
     weld_obj.weld_code = weld_template % {"piv": pivot_var,
                                           "cty": column_type,
+                                          "idty": index_type,
                                           "colnm": column_name_var,
                                           "pvty": pivot_type}
     return weld_obj

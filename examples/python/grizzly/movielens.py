@@ -6,15 +6,15 @@ import time
 pd.options.display.max_rows = 10
 
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']
-users = pd.read_table('data/ml-1m/users.dat', sep='::', header=None,
+users = pd.read_table('data/ml-5m/users.dat', sep='::', header=None,
                       names=unames)
 
 rnames = ['user_id', 'movie_id', 'rating', 'timestamp']
-ratings = pd.read_table('data/ml-1m/ratings.dat', sep='::', header=None,
+ratings = pd.read_table('data/ml-5m/ratings.dat', sep='::', header=None,
                         names=rnames)
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table('data/ml-1m/movies.dat', sep='::', header=None,
+movies = pd.read_table('data/ml-5m/movies.dat', sep='::', header=None,
                        names=mnames)
 
 start = time.time()
@@ -33,7 +33,9 @@ mean_ratings['diff'] = mean_ratings['M'] - mean_ratings['F']
 sorted_by_diff = mean_ratings.sort_values(by='diff')
 rating_std_by_title = data.groupby('title')['rating'].std()
 rating_std_by_title = rating_std_by_title.loc[active_titles]
-#print rating_std_by_title.sort_values(ascending=False)[:10]
+rating_std_by_title = rating_std_by_title.sort_values(ascending=False)[:10]
 end = time.time()
 
+print sorted_by_diff
+print rating_std_by_title
 print "Time for analysis:", (end - start)
