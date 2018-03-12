@@ -24,7 +24,6 @@ users = gr.DataFrameWeld(users)
 movies = gr.DataFrameWeld(movies)
 
 data = gr.merge(gr.merge(ratings, users), movies).evaluate(True).to_pandas()
-print data
 print "Time to merge:", (time.time() - start)
 start = time.time()
 data = gr.DataFrameWeld(data)
