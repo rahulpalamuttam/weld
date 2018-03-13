@@ -368,7 +368,7 @@ def merge(df1, df2):
         )
     return df1.merge(df2)
 
-def group_eval(objs):
+def group_eval(objs, passes=None):
     LazyOpResults = []
     for ob in objs:
         if isinstance(ob, SeriesWeld):
@@ -378,7 +378,7 @@ def group_eval(objs):
         else:
             LazyOpResults.append(LazyOpResult(ob.expr, ob.weld_type, 0))
     
-    results = group(LazyOpResults).evaluate((True, -1))
+    results = group(LazyOpResults).evaluate((True, -1), passes=passes)
     pd_results = []
     for i, result in enumerate(results):
         ob = objs[i]
@@ -397,7 +397,12 @@ def group_eval(objs):
                 for i, column_name in enumerate(columns):
                     df_dict[column_name] = pivot[i]
                 pd_results.append(pd.DataFrame(df_dict, index=index))
-    
+            else:
+                columns = result
+                df_dict = {}
+                for i, column_name in enumerate(ob.column_names):
+                    df_dict[column_name] = columns[i]
+                pd_results.append(pd.DataFrame(df_dict))
     return pd_results
 
 def group(exprs):
@@ -577,6 +582,45 @@ class DataFrameWeld:
                     self.raw_columns.values(),
                 ),
                 predicates
+            ),
+            self.raw_columns.keys(),
+            weld_type
+        )
+
+    def sort_values(self, by):
+        """Summary
+
+        Args:
+            grouping_column_name (TYPE): Description
+
+        Returns:
+            TYPE: Description
+        """
+        tys = []
+        for col_name, raw_column in self.raw_columns.items():
+            dtype = str(raw_column.dtype)
+            if dtype == 'object' or dtype == '|S64':
+                weld_type = WeldVec(WeldChar())
+            else:
+                weld_type = grizzly_impl.numpy_to_weld_type_mapping[dtype]
+            tys.append(weld_type)
+
+        if len(tys) == 1:
+            weld_type = WeldVec(tys[0])
+        else:
+            tys2 = [WeldVec(ty) for ty in tys]
+            weld_type = WeldStruct(tys2)
+
+        return DataFrameWeldExpr(
+            grizzly_impl.unzip_columns(
+              grizzly_impl.sort(
+                grizzly_impl.zip_columns(
+                  self.raw_columns.values(),
+                ),
+                2,
+                WeldDouble()
+              ),
+              tys
             ),
             self.raw_columns.keys(),
             weld_type

@@ -1,0 +1,14 @@
+grizzly
+1
+Python->Weld: 0.00127911567688
+executing preprocessing
+Weld compile time: 0.249927043915
+Weld: 12.4676280022
+Weld->Python: 14.4713509083
+Time to merge: 55.6741499901
+Python->Weld: 4.69959402084
+Weld compile time: 1.00955295563
+Weld: 48.7074968815
+Weld->Python: 0.00173902511597
+Time for analysis: 71.2705450058
+2
