@@ -49,8 +49,7 @@ mean_ratings = gr.DataFrameWeld(mean_ratings)
 # Evaluating for CLO
 
 sorted_by_diff = mean_ratings.sort_values(by='diff')
-# print sorted_by_diff.evaluate((True, -1)).to_pandas()
-# sys.exit()
+
 rating_std_by_title = data.groupby('title')['rating'].std()
 rating_std_by_title = rating_std_by_title.loc[active_titles]
 rating_std_by_title = rating_std_by_title.sort_values(ascending=False)[0:10]

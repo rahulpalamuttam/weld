@@ -30,49 +30,49 @@ data = gr.DataFrameWeld(data)
 mean_ratings = data.pivot_table('rating', index='title', columns='gender',
                                 aggfunc='mean')
 
-print "mean ratings eval"
+#print "mean ratings eval"
 #mean_ratings.evaluate((True, -1))
 ratings_by_title = data.groupby('title').size()
 
-print "ratings by title eval"
+#print "ratings by title eval"
 #ratings_by_title.evaluate((True, -1))
 
 active_titles = ratings_by_title.index[ratings_by_title >= 250]
 
-print "active titles filter"
+#print "active titles filter"
 #active_titles.evaluate((True, -1))
 
 mean_ratings = mean_ratings.loc[active_titles]
-print "mean_ratings loc filter"
+#print "mean_ratings loc filter"
 #mean_ratings.evaluate((True, -1))
 
 diff = mean_ratings['M'] - mean_ratings['F']
 
-print "difference evaluate"
+#print "difference evaluate"
 #diff.evaluate((True, -1))
 
 mean_ratings['diff'] = mean_ratings['M'] - mean_ratings['F']
 
-print "diff and reinsert"
+#print "diff and reinsert"
 #mean_ratings.evaluate((True, -1))
 
 sorted_by_diff = mean_ratings.sort_values(by='diff')
 
-print "sorted by diff"
+#print "sorted by diff"
 #sorted_by_diff.evaluate((True, -1))
 
 rating_std_by_title = data.groupby('title')['rating'].std()
-print "rating_std_by_title"
+#print "rating_std_by_title"
 #rating_std_by_title.evaluate((True, -1))
 
 rating_std_by_title = rating_std_by_title.loc[active_titles]
-print "rating_std_by title loc"
+#print "rating_std_by title loc"
 #print rating_std_by_title.evaluate((True, -1))
 rating_std_by_title = rating_std_by_title.sort_values(ascending=False)[0:10]
-print "sort values"
+#print "sort values"
 #print rating_std_by_title.evaluate((True, -1))
 
-print "final eval"
+#print "final eval"
 sorted_by_diff, rating_std_by_title = gr.group_eval([sorted_by_diff, rating_std_by_title])
 
 #print sorted_by_diff.evaluate((True, -1)).to_pandas()
@@ -80,5 +80,5 @@ sorted_by_diff, rating_std_by_title = gr.group_eval([sorted_by_diff, rating_std_
 end = time.time()
 
 print "Time for analysis:", (end - start)
-print sorted_by_diff
-print rating_std_by_title
+#print sorted_by_diff
+#print rating_std_by_title
