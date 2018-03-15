@@ -58,38 +58,38 @@ do
 done
 
 export WELD_NUM_THREADS=8
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> grizzly8.tt
-# 	 python movielens_grizzly.py >> grizzly8.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> grizzly8.tt
+	 python movielens_grizzly.py >> grizzly8.tt
+done
 
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> grizzly_infer_length8.tt
-# 	 python movielens_grizzly_infer_length.py >> grizzly_infer_length8.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> grizzly_infer_length8.tt
+	 python movielens_grizzly_infer_length.py >> grizzly_infer_length8.tt
+done
 
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> grizzly_predication8.tt
-# 	 python movielens_grizzly_predication.py >> grizzly_predication8.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> grizzly_predication8.tt
+	 python movielens_grizzly_predication.py >> grizzly_predication8.tt
+done
 
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> grizzly_vectorize8.tt
-# 	 python movielens_grizzly_vectorize.py >> grizzly_vectorize8.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> grizzly_vectorize8.tt
+	 python movielens_grizzly_vectorize.py >> grizzly_vectorize8.tt
+done
 
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> grizzly_clo8.tt
-# 	 python movielens_grizzly_clo.py >> grizzly_clo8.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> grizzly_clo8.tt
+	 python movielens_grizzly_clo.py >> grizzly_clo8.tt
+done
 
-# for i in $(seq "$NUM_ITERATIONS"):
-# do
-# 	 echo $i >> pandas.tt
-# 	 python movielens.py >> pandas.tt
-# done
+for i in $(seq "$NUM_ITERATIONS"):
+do
+	 echo $i >> pandas.tt
+	 python movielens.py >> pandas.tt
+done
