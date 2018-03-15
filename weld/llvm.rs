@@ -41,7 +41,7 @@ use super::annotations::*;
 use super::conf::ParsedConf;
 
 use super::CompilationStats;
-
+use std::ascii::AsciiExt;
 #[cfg(test)]
 use super::parser::*;
 
@@ -173,6 +173,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     let llvm_code = gen.result();
     let end = PreciseTime::now();
     trace!("LLVM program:\n{}\n", &llvm_code);
+    //println!("LLVM program:\n{}\n", &llvm_code);	
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
     debug!("Started compiling LLVM");
@@ -1939,16 +1940,26 @@ impl LlvmGenerator {
                 }}", NAME=bld_name.replace("%", "")));
             }
             Vector(ref elem) => {
-                self.gen_hash(elem)?;
-                let elem_ty = self.llvm_type(elem)?;
-                let elem_prefix = llvm_prefix(&elem_ty);
-                let name = self.vec_names.get(elem).unwrap();
-                    self.prelude_code.add(format!(
-                            include_str!("resources/vector/vector_hash.ll"),
-                            ELEM_PREFIX=&elem_prefix,
-                            ELEM=&elem_ty,
-                            NAME=&name.replace("%", "")));
-            }
+	                    self.gen_hash(elem)?;
+			                    let elem_ty = self.llvm_type(elem)?;
+					                    let elem_prefix = llvm_prefix(&elem_ty);
+							                    let name = self.vec_names.get(elem).unwrap();
+									                    match *elem.as_ref() {
+											                        Scalar(ScalarKind::U8) | Scalar(ScalarKind::I8) => {
+														                        self.prelude_code.add(format!(
+																	                                include_str!("resources/vector/veci8_hash.ll"),
+																					                                ELEM=&elem_ty,
+																									                                NAME=&name.replace("%", "")));
+																													                    }
+																															                        _ => {
+																																		                        self.prelude_code.add(format!(
+																																					                                include_str!("resources/vector/vector_hash.ll"),
+																																									                                ELEM_PREFIX=&elem_prefix,
+																																													                                ELEM=&elem_ty,
+																																																	                                NAME=&name.replace("%", "")));
+																																																					                    }
+																																																							                    }
+																																																									                }
             _ => {
                 return weld_err!("Unsupported function `hash` for type {:?}", ty);
             }
@@ -2633,95 +2644,134 @@ impl LlvmGenerator {
             Sort { ref child, ref keyfunc } => {
                 // keyfunc is an actual SirFunction
                 let out_ty = func.symbol_type(output)?;
-                let function_id = ctx.var_ids.next();
+		let function_id = ctx.var_ids.next();
                 let func_str = &function_id.replace("%", "");
                 match *out_ty {
                     Vector(ref elem_ty) => {
                         let elem_ll_ty = self.llvm_type(elem_ty)?;
-                        let mut str_args = String::from("");
-                        let param_syms: Vec<_> = keyfunc.params.keys().collect();
-                        if param_syms.len() == 1 {
-                            let param_ty = keyfunc.symbol_type(param_syms[0])?;
-                            if *param_ty == **elem_ty {
-                                let (param_ll_ty, param_ll_sym) = self.llvm_type_and_name(keyfunc, param_syms[0])?;
-                                str_args.push_str(&format!("{}* {}", param_ll_ty, param_ll_sym));
-                            } else {
-                                return weld_err!("Type mismatch: vector:{ } and sort key parameter:{ }",
-                                                 print_type(&**elem_ty), print_type(&*param_ty));
-                            }
-                        }
-
+			let mut str_args = String::from("");
+			let param_syms: Vec<_> = keyfunc.params.keys().collect();
+			if param_syms.len() == 1 {
+				let param_ty = keyfunc.symbol_type(param_syms[0])?;
+				if *param_ty == **elem_ty {
+					let (param_ll_ty, param_ll_sym) = self.llvm_type_and_name(keyfunc, param_syms[0])?;
+					str_args.push_str(&format!("{}* {}", param_ll_ty, param_ll_sym));
+				} else {
+				    return weld_err!("Type mismatch: vector:{ } and sort key parameter:{ }",
+				    print_type(&**elem_ty), print_type(&*param_ty));
+				}
+			}
+                    
                         // Check that type of key is scalar
-                        let key_ll_sym;
-                        let key_ll_ty;
-                        let last_block = keyfunc.blocks.last().unwrap();
-                        if let Terminator::ProgramReturn(ref key_sym) = last_block.terminator {
-                            let key_ty = keyfunc.symbol_type(key_sym)?;
-                            if let Scalar(_) = *key_ty {
-                                self.gen_cmp(key_ty)?;
-                                let (key_ll_tyc, key_ll_symc) = self.llvm_type_and_name(keyfunc, key_sym)?;
-                                key_ll_ty = key_ll_tyc;
-                                key_ll_sym = key_ll_symc;
-                            } else {
-                                return weld_err!("Sort key function must have scalar return type");
-                            }
-                        } else {
-                            return weld_err!("Sort key Function must have return type");
-                        }
-
-                        // Generate prelude code
-                        let keyfunc_ctx = &mut FunctionContext::new(false);
-                        for (arg, ty) in keyfunc.locals.iter() {
-                            let arg_str = llvm_symbol(&arg);
-                            let ty_str = self.llvm_type(&ty)?;
-                            keyfunc_ctx.add_alloca(&arg_str, &ty_str)?;
-                        }
-                        for b in keyfunc.blocks.iter() {
-                            for s in b.statements.iter() {
-                                self.gen_statement(s, keyfunc, keyfunc_ctx)?
-                            }
-                        }
-
-                        // Add key function and sort prelude code
-                        self.prelude_code.add(format!(
-                            "define {} @{}({}) {{",
-                            key_ll_ty,
-                            func_str,
-                            str_args));
-                        self.prelude_code.add(keyfunc_ctx.alloca_code.result());
-                        self.prelude_code.add(keyfunc_ctx.code.result());
-                        self.prelude_code.add(format!("{}.ret = load {}, {}* {}", key_ll_sym, key_ll_ty, key_ll_ty, key_ll_sym));
-                        self.prelude_code.add(format!("ret {} {}.ret\n}}", key_ll_ty, key_ll_sym));
-                        let name = self.vec_names.get(elem_ty).unwrap();
-                        self.prelude_code.add(format!(
-                            include_str!("resources/vector/vector_sort.ll"),
-                            ELEM=&elem_ll_ty,
-                            KEY=&key_ll_ty,
-                            FUNC=&func_str,
-                            NAME=&name.replace("%", "")));
+			let key_ll_sym;
+			let key_ll_ty;
+		    let last_block = keyfunc.blocks.last().unwrap();
+			if let Terminator::ProgramReturn(ref key_sym) = last_block.terminator {
+				let key_ty = keyfunc.symbol_type(key_sym)?;
+				if let Scalar(_) = *key_ty {
+					self.gen_cmp(key_ty)?;
+					let (key_ll_tyc, key_ll_symc) = self.llvm_type_and_name(keyfunc, key_sym)?;
+					key_ll_ty = key_ll_tyc.replace("%", "");
+					key_ll_sym = key_ll_symc;
+				    // Generate prelude code
+					let keyfunc_ctx = &mut FunctionContext::new(false);
+					for (arg, ty) in keyfunc.locals.iter() {
+						let arg_str = llvm_symbol(&arg);
+						let ty_str = self.llvm_type(&ty)?;
+						keyfunc_ctx.add_alloca(&arg_str, &ty_str)?;
+					}
+					for b in keyfunc.blocks.iter() {
+						for s in b.statements.iter() {
+							self.gen_statement(s, keyfunc, keyfunc_ctx)?
+						}
+					}
+					// Add key function and sort prelude code
+					let name = self.vec_names.get(elem_ty).unwrap();
+					self.prelude_code.add(format!(
+					    "define {} @{}.{}({}) {{",
+					    key_ll_ty,
+					    &name.replace("%", ""),
+					    func_str,
+					    str_args));
+					self.prelude_code.add(keyfunc_ctx.alloca_code.result());
+					self.prelude_code.add(keyfunc_ctx.code.result());
+					self.prelude_code.add(format!("{}.ret = load {}, {}* {}",
+								      key_ll_sym, key_ll_ty, key_ll_ty, key_ll_sym));
+					self.prelude_code.add(format!("ret {} {}.ret\n}}", key_ll_ty, key_ll_sym));
+					self.prelude_code.add(format!(
+					    include_str!("resources/vector/vector_sort.ll"),
+					    ELEM=&elem_ll_ty,
+					    KEY=&key_ll_ty,
+					    RAWKEY=&key_ll_ty,
+					    FUNC=&func_str,
+					    NAME=&name.replace("%", "")));
+				} else if let Vector(_) = *key_ty {
+				    self.gen_cmp(key_ty)?;
+				    let (key_ll_tyc, key_ll_symc) = self.llvm_type_and_name(keyfunc, key_sym)?;
+				    key_ll_ty = key_ll_tyc;
+				    key_ll_sym = key_ll_symc;
+				    // Generate prelude code
+				    let keyfunc_ctx = &mut FunctionContext::new(false);
+				    for (arg, ty) in keyfunc.locals.iter() {
+					    let arg_str = llvm_symbol(&arg);
+					    let ty_str = self.llvm_type(&ty)?;
+					    keyfunc_ctx.add_alloca(&arg_str, &ty_str)?;
+				    }
+				    for b in keyfunc.blocks.iter() {
+					    for s in b.statements.iter() {
+						    self.gen_statement(s, keyfunc, keyfunc_ctx)?
+					    }
+				    }
+				    // Add key function and sort prelude code
+				    let name = self.vec_names.get(elem_ty).unwrap();
+				    self.prelude_code.add(format!(
+					"define {} @{}.{}({}) {{",
+					key_ll_ty,
+					&name.replace("%", ""),
+					func_str,
+					str_args));
+				    self.prelude_code.add(keyfunc_ctx.alloca_code.result());
+				    self.prelude_code.add(keyfunc_ctx.code.result());
+				    self.prelude_code.add(format!("{}.ret = load {}, {}* {}",
+							          key_ll_sym, key_ll_ty, key_ll_ty, key_ll_sym));
+				    self.prelude_code.add(format!("ret {} {}.ret\n}}", key_ll_ty, key_ll_sym));
+				    self.prelude_code.add(format!(
+					include_str!("resources/vector/vector_sort.ll"),
+					ELEM=&elem_ll_ty,
+					KEY=&key_ll_ty,
+					RAWKEY=&key_ll_ty.replace("%", ""),
+					FUNC=&func_str,
+					NAME=&name.replace("%", "")));
+				} else {
+				    return weld_err!("Sort key function must have scalar return type");
+				}
+			} else {
+			    return weld_err!("Sort key Function must have return type");
+			}
+                        
                     }
-                    _ => {
-                        return weld_err!("Unsupported function `sort` for type {:?}", out_ty);
-                    }
-                }
-
+		    _ => {
+			return weld_err!("Unsupported function `sort` for type {:?}", out_ty);
+		    }
+		}
+                
                 let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
-                let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
-                let vec_prefix = llvm_prefix(&child_ll_ty);
-                let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
-                let res_ptr = ctx.var_ids.next();
-                ctx.code.add(format!("{} = call {} {}.{}.sort({} {})",
-                                     res_ptr,
-                                     output_ll_ty,
-                                     vec_prefix,
-                                     func_str,
-                                     child_ll_ty,
-                                     child_tmp));
-                self.gen_store_var(&res_ptr, &output_ll_sym, &output_ll_ty, ctx);
+		let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
+		let vec_prefix = llvm_prefix(&child_ll_ty);
+		let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
+		let res_ptr = ctx.var_ids.next();
+		ctx.code.add(format!("{} = call {} {}.{}.sort({} {})",
+				     res_ptr,
+				     output_ll_ty,
+				     vec_prefix,
+				     func_str,
+				     child_ll_ty,
+				     child_tmp));
+		self.gen_store_var(&res_ptr, &output_ll_sym, &output_ll_ty, ctx);
             }
-
-            Select { ref cond, ref on_true, ref on_false } => {
-                let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
+                
+                Select { ref cond, ref on_true, ref on_false } => {
+                    let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
                 let (cond_ll_ty, cond_ll_sym) = self.llvm_type_and_name(func, cond)?;
                 let (on_true_ll_ty, on_true_ll_sym) = self.llvm_type_and_name(func, on_true)?;
                 let (on_false_ll_ty, on_false_ll_sym) = self.llvm_type_and_name(func, on_false)?;

@@ -84,7 +84,7 @@ class NumPyEncoder(WeldObjectEncoder):
             raise Exception("Invalid object type: unable to infer NVL type")
         return base
 
-    def encode(self, obj):
+    def encode(self, obj, num_threads):
         """Converts Python object to Weld object.
 
         Args:
@@ -117,7 +117,7 @@ class NumPyEncoder(WeldObjectEncoder):
 
         numpy_to_weld.restype = self.py_to_weld_type(obj).ctype_class
         numpy_to_weld.argtypes = [py_object]
-        weld_vec = numpy_to_weld(obj)
+        weld_vec = numpy_to_weld(obj, num_threads)
         return weld_vec
 
 
@@ -174,6 +174,8 @@ class NumPyDecoder(WeldObjectDecoder):
         # ctypes._structure
         if restype == WeldVec(WeldBit()):
             weld_to_numpy = self.utils.weld_to_numpy_bool_arr
+        elif restype == WeldVec(WeldLong()):
+            weld_to_numpy = self.utils.weld_to_numpy_long_arr
         elif restype == WeldVec(WeldDouble()):
             weld_to_numpy = self.utils.weld_to_numpy_double_arr
         elif restype == WeldVec(WeldVec(WeldChar())):

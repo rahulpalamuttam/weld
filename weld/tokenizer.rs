@@ -14,6 +14,8 @@ use regex::Regex;
 
 use super::error::*;
 
+use std::ascii::AsciiExt;
+
 #[derive(Clone,Debug,PartialEq)]
 pub enum Token {
     TI32Literal(i32),

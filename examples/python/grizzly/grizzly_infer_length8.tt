@@ -1,0 +1,61 @@
+grizzly infer_length parallel
+1
+Python->Weld: 0.00128579139709
+executing preprocessing
+Weld compile time: 0.200378894806
+Weld: 15.0401120186
+Weld->Python: 15.7596840858
+Time to merge: 62.8851079941
+Python->Weld: 4.65823793411
+Weld compile time: 0.909014940262
+Weld: 10.833920002
+Weld->Python: 0.00317406654358
+Time for analysis: 33.9801280499
+2
+Python->Weld: 0.00123882293701
+executing preprocessing
+Weld compile time: 0.203253030777
+Weld: 10.0710220337
+Weld->Python: 14.9590730667
+Time to merge: 53.5290000439
+Python->Weld: 4.64202880859
+Weld compile time: 0.912722110748
+Weld: 10.8871738911
+Weld->Python: 0.00361514091492
+Time for analysis: 31.5810110569
+3
+Python->Weld: 0.00125408172607
+executing preprocessing
+Weld compile time: 0.199768781662
+Weld: 26.7992448807
+Weld->Python: 15.6938450336
+Time to merge: 73.8376591206
+Python->Weld: 4.8711669445
+Weld compile time: 0.912495851517
+Weld: 10.7171599865
+Weld->Python: 0.0023410320282
+Time for analysis: 34.1084730625
+4
+Python->Weld: 0.00129199028015
+executing preprocessing
+Weld compile time: 0.200150966644
+Weld: 17.9605741501
+Weld->Python: 15.7961530685
+Time to merge: 63.9320340157
+Python->Weld: 4.73125815392
+Weld compile time: 0.920464992523
+Weld: 11.2629089355
+Weld->Python: 0.00376296043396
+Time for analysis: 34.5495657921
+5:
+Python->Weld: 0.00127100944519
+executing preprocessing
+Weld compile time: 0.201568841934
+Weld: 8.78211212158
+Weld->Python: 15.3702809811
+Time to merge: 54.8517279625
+Python->Weld: 4.73493599892
+Weld compile time: 0.911182165146
+Weld: 10.9383170605
+Weld->Python: 0.00324606895447
+Time for analysis: 33.6758260727

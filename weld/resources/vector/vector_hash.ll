@@ -14,7 +14,7 @@ body:
   %elem = load {ELEM}, {ELEM}* %ptr
   %elemHash = call i32 {ELEM_PREFIX}.hash({ELEM} %elem)
   %newHash = call i32 @hash_combine(i32 %prevHash, i32 %elemHash)
-  %i2 = add i64 %i, 1
+  %i2 = add i64 %i, 4
   %cond2 = icmp ult i64 %i2, %size
   br i1 %cond2, label %body, label %done
 
