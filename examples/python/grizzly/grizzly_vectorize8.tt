@@ -2,5 +2,16 @@ grizzly vectorize parallel
 1
 2
 3
+Python->Weld: 0.00134611129761
+executing preprocessing
+Weld compile time: 0.201384067535
+Weld: 13.2708461285
+Weld->Python: 15.3781459332
+Time to merge: 60.0016038418
+Python->Weld: 4.79000616074
+Weld compile time: 0.912357091904
+Weld: 12.5578899384
+Weld->Python: 0.00546789169312
+Time for analysis: 35.7224929333
 4
 5:

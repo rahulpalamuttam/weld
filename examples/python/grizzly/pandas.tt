@@ -1,6 +1,301 @@
 pandas
 1
+Time to merge: 11.7515480518
+Time for analysis: 35.1233859062
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
 2
+Time to merge: 11.1665937901
+Time for analysis: 34.7946469784
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
 3
+Time to merge: 11.2989208698
+Time for analysis: 34.9115719795
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
 4
+Time to merge: 11.1864619255
+Time for analysis: 34.9286141396
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
 5:
+Time to merge: 11.1220679283
+Time for analysis: 34.4913461208
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
+1
+Time to merge: 11.2421331406
+Time for analysis: 34.2992050648
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
+2
+Time to merge: 11.0853760242
+Time for analysis: 34.101747036
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
+3
+Time to merge: 11.154515028
+Time for analysis: 34.1768300533
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
+4
+Time to merge: 11.111000061
+Time for analysis: 33.937623024
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64
+5:
+Time to merge: 11.3489971161
+Time for analysis: 34.4237160683
+gender                                             F     M      diff
+title                                                               
+Country Life (1994)                         5.000000  2.00 -3.000000
+Babyfever (1994)                            3.666667  1.00 -2.666667
+Cobra (1925)                                4.000000  1.50 -2.500000
+Phat Beach (1996)                           3.000000  1.00 -2.000000
+Mad Dog Time (1996)                         4.000000  2.00 -2.000000
+...                                              ...   ...       ...
+Wings of Courage (1995)                          NaN  3.00       NaN
+With Friends Like These... (1998)                NaN  4.00       NaN
+Year of the Horse (1997)                         NaN  3.25       NaN
+Zachariah (1971)                                 NaN  3.50       NaN
+Zero Kelvin (Kj�rlighetens kj�tere) (1995)       NaN  3.50       NaN
+
+[2669 rows x 3 columns]
+title
+Foreign Student (1994)                                2.004012
+Criminal Lovers (Les Amants Criminels) (1999)         1.888137
+Rosie (1998)                                          1.787145
+In God's Hands (1998)                                 1.744956
+Vampyros Lesbos (Las Vampiras) (1970)                 1.701944
+Nosferatu a Venezia (1986)                            1.667993
+Grateful Dead (1995)                                  1.664833
+Seventh Heaven (Le Septi�me ciel) (1997)              1.659142
+Black Sunday (La Maschera Del Demonio) (1960)         1.641001
+Message to Love: The Isle of Wight Festival (1996)    1.604485
+Name: rating, dtype: float64

@@ -1,1 +1,61 @@
 grizzly prediaction
+1
+Python->Weld: 0.0013439655304
+executing preprocessing
+Weld compile time: 0.196174144745
+Weld: 11.9041261673
+Weld->Python: 13.8588809967
+Time to merge: 55.1593420506
+Python->Weld: 4.65997695923
+Weld compile time: 0.946337938309
+Weld: 33.8380768299
+Weld->Python: 0.00153183937073
+Time for analysis: 56.0145590305
+2
+Python->Weld: 0.00132393836975
+executing preprocessing
+Weld compile time: 0.197800159454
+Weld: 12.3538639545
+Weld->Python: 13.9834640026
+Time to merge: 55.8388249874
+Python->Weld: 4.88519096375
+Weld compile time: 0.953189134598
+Weld: 34.0921969414
+Weld->Python: 0.00170516967773
+Time for analysis: 56.9767210484
+3
+Python->Weld: 0.00122499465942
+executing preprocessing
+Weld compile time: 0.196245908737
+Weld: 12.0416889191
+Weld->Python: 13.8511412144
+Time to merge: 50.2190330029
+Python->Weld: 4.52788591385
+Weld compile time: 0.936532020569
+Weld: 33.1698930264
+Weld->Python: 0.0014181137085
+Time for analysis: 52.4587979317
+4
+Python->Weld: 0.00129508972168
+executing preprocessing
+Weld compile time: 0.198194980621
+Weld: 12.187117815
+Weld->Python: 13.9062960148
+Time to merge: 50.2689931393
+Python->Weld: 4.60354208946
+Weld compile time: 0.950925827026
+Weld: 33.3312020302
+Weld->Python: 0.00141310691833
+Time for analysis: 52.774230957
+5:
+Python->Weld: 0.00135707855225
+executing preprocessing
+Weld compile time: 0.19935798645
+Weld: 12.1788210869
+Weld->Python: 15.0662360191
+Time to merge: 61.1278319359
+Python->Weld: 4.87808012962
+Weld compile time: 0.95515203476
+Weld: 34.0752561092
+Weld->Python: 0.00155305862427
+Time for analysis: 57.4714729786

@@ -1,44 +1,39 @@
 grizzly predication parallel
 1
-Python->Weld: 0.00124001502991
+Python->Weld: 0.00129294395447
 executing preprocessing
-Weld compile time: 0.200392007828
-Weld: 10.0742120743
-Weld->Python: 14.8030581474
-Time to merge: 55.1523799896
-Python->Weld: 4.74379682541
-Weld compile time: 0.91623711586
-Weld: 10.8576958179
-Weld->Python: 0.00422692298889
-Time for analysis: 34.1168329716
+Weld compile time: 0.19850897789
+Weld: 16.8652660847
+Weld->Python: 14.0534038544
+Time to merge: 60.3093299866
+Python->Weld: 4.9005792141
+Weld compile time: 0.949824094772
+Weld: 12.3748569489
+Weld->Python: 0.0101170539856
+Time for analysis: 34.9001090527
 2
-Python->Weld: 0.00131797790527
+Python->Weld: 0.00129413604736
 executing preprocessing
-Weld compile time: 0.203248023987
-Weld: 8.46612000465
-Weld->Python: 14.3311328888
-Time to merge: 55.816742897
-Python->Weld: 4.74086308479
-Weld compile time: 0.908707857132
-Weld: 10.6954810619
-Weld->Python: 0.00315999984741
-Time for analysis: 33.8888480663
+Weld compile time: 0.198281049728
+Weld: 15.0960829258
+Weld->Python: 14.2965168953
+Time to merge: 56.6934320927
+Python->Weld: 4.64728283882
+Weld compile time: 0.956703186035
+Weld: 12.58594203
+Weld->Python: 0.0103859901428
+Time for analysis: 32.9308600426
 3
-Python->Weld: 0.00132417678833
-executing preprocessing
-Weld compile time: 0.200518846512
-Weld: 9.29089307785
-Weld->Python: 14.6066839695
-Time to merge: 53.5904829502
-Python->Weld: 4.69998383522
-Weld compile time: 0.922502994537
-Weld: 10.9090280533
-Weld->Python: 0.00353288650513
-Time for analysis: 34.0283670425
 4
-Python->Weld: 0.00132894515991
-executing preprocessing
-Weld compile time: 0.199656963348
-Weld: 9.00145888329
-Weld->Python: 14.1031570435
 5:
+Python->Weld: 0.00125002861023
+executing preprocessing
+Weld compile time: 0.196820020676
+Weld: 22.0851359367
+Weld->Python: 15.6410079002
+Time to merge: 65.1121401787
+Python->Weld: 4.65070700645
+Weld compile time: 0.955648183823
+Weld: 12.8295991421
+Weld->Python: 0.00987100601196
+Time for analysis: 33.2375779152

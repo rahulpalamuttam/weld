@@ -1,1 +1,61 @@
 grizzly vectorize
+1
+Python->Weld: 0.00119185447693
+executing preprocessing
+Weld compile time: 0.196978092194
+Weld: 12.2438590527
+Weld->Python: 13.9633479118
+Time to merge: 50.2305788994
+Python->Weld: 4.6180229187
+Weld compile time: 0.904696941376
+Weld: 33.5957829952
+Weld->Python: 0.00142502784729
+Time for analysis: 53.0161070824
+2
+Python->Weld: 0.00118398666382
+executing preprocessing
+Weld compile time: 0.195769071579
+Weld: 12.046131134
+Weld->Python: 14.0151669979
+Time to merge: 50.171407938
+Python->Weld: 4.52049803734
+Weld compile time: 0.892553091049
+Weld: 33.2539811134
+Weld->Python: 0.00155997276306
+Time for analysis: 52.7767241001
+3
+Python->Weld: 0.00130200386047
+executing preprocessing
+Weld compile time: 0.199524879456
+Weld: 12.242814064
+Weld->Python: 14.1256802082
+Time to merge: 54.8314211369
+Python->Weld: 4.77760004997
+Weld compile time: 0.978054046631
+Weld: 33.8829579353
+Weld->Python: 0.00154280662537
+Time for analysis: 57.3150119781
+4
+Python->Weld: 0.00137901306152
+executing preprocessing
+Weld compile time: 0.198295116425
+Weld: 12.2666060925
+Weld->Python: 14.1699929237
+Time to merge: 50.1780850887
+Python->Weld: 4.56035590172
+Weld compile time: 0.902711868286
+Weld: 33.4641399384
+Weld->Python: 0.00139808654785
+Time for analysis: 52.7802250385
+5:
+Python->Weld: 0.00138187408447
+executing preprocessing
+Weld compile time: 0.196895837784
+Weld: 12.0654029846
+Weld->Python: 13.9625229836
+Time to merge: 49.9653868675
+Python->Weld: 4.61791014671
+Weld compile time: 0.905930042267
+Weld: 33.6438381672
+Weld->Python: 0.00149202346802
+Time for analysis: 53.1123452187

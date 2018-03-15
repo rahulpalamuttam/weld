@@ -1115,7 +1115,7 @@ def groupby_std(columns, column_tys, grouping_columns, grouping_column_tys):
     if len(columns_var_list) == 1 and len(grouping_columns) == 1:
         columns_var = columns_var_list[0]
         tys_str = column_tys[0]
-        result_str = "merge(b, e)"
+        result_str = "merge(b, {e.$0, {e.$1, 1L}})"
         # TODO : The above change needs to apply for all result strings
         # These currently break at the moment
     elif len(columns_var_list) == 1 and len(grouping_columns) > 1:
@@ -1138,7 +1138,7 @@ def groupby_std(columns, column_tys, grouping_columns, grouping_column_tys):
             value_str_list.append("e.$%d" % i)
         value_str = "{%s}" % ", ".join(value_str_list)
         result_str_list = [key_str, value_str]
-        result_str = "merge(b, %s)" % ", ".join(result_str_list)
+        result_str = "merge(b, {%s, 1L})" % ", ".join(result_str_list)
     else:
         columns_var = "%s" % ", ".join(columns_var_list)
         column_tys = [str(ty) for ty in column_tys]
@@ -1154,7 +1154,7 @@ def groupby_std(columns, column_tys, grouping_columns, grouping_column_tys):
             value_str_list.append("e.$%d" % i)
         value_str = "{%s}" % ", ".join(value_str_list)
         result_str_list = [key_str, value_str]
-        result_str = "merge(b, %s)" % ", ".join(result_str_list)
+        result_str = "merge(b, {%s, 1L})" % ", ".join(result_str_list)
         # TODO Need to implement exponent operator
         # The mean dict's e.$1.$0 assumes this is a scalar vector and not a struct vector
         # Also pandas normalizes by n - 1
@@ -1162,18 +1162,26 @@ def groupby_std(columns, column_tys, grouping_columns, grouping_column_tys):
     let sum_dict = result(
       for(
         zip(%(grouping_column)s, %(columns)s),
-        groupmerger[%(gty)s, %(ty)s],
+        dictmerger[%(gty)s, {%(ty)s, i64}, +],
         |b, i, e| %(result)s
       )
     );
+    let mean_dict = result(
+      for(
+        tovec(sum_dict),
+        dictmerger[%(gty)s, f64, +],
+        |b, i, e| merge(b, {e.$0, f64(e.$1.$0) / f64(e.$1.$1)})
+      )
+    );
+    let std_dict = result(
+      for(
+        zip(%(grouping_column)s, %(columns)s),
+        dictmerger[%(gty)s, f64, +],
+        |b, i, e| merge(b, {e.$0, (let m = lookup(mean_dict, e.$0); (f64(e.$1) - m)* (f64(e.$1) - m))})
+    ));
     map(
-        sort(tovec(sum_dict), |x| x.$0),
-        |e| {e.$0, 
-                   (let sum = result(for(e.$1, merger[%(ty)s,+], |b,i,a| merge(b, a)));
-                    let m = f64(sum) / f64(len(e.$1)); 
-                    let msqr = result(for(e.$1, merger[f64,+], |b,i,a| merge(b, (f64(a)-m)*(f64(a)-m))));
-                    sqrt(msqr / f64(len(e.$1) - 1L)) 
-                   )}
+      sort(tovec(std_dict), |x| x.$0),
+      |x| {x.$0, sqrt((x.$1 / f64(lookup(sum_dict, x.$0).$1 - 1L)))}
     )
   """
 
