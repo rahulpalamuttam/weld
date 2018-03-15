@@ -42,5 +42,7 @@ sorted_by_diff, rating_std_by_title = gr.group_eval([sorted_by_diff, rating_std_
 #print sorted_by_diff.evaluate((True, -1)).to_pandas()
 #print rating_std_by_title.sort_values(ascending=False)[0:10].evaluate((True, -1))
 end = time.time()
-
 print "Time for analysis:", (end - start)
+
+#print sorted_by_diff
+#print rating_std_by_title

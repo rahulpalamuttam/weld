@@ -1564,10 +1564,19 @@ class GroupByWeldSeries:
             self.grouping_columns,
             self.grouping_column_types
         )
+        # print "here you go "
+        # LazyOpResult(
+        #     std_expr,
+        #     WeldVec(WeldDouble()),
+        #     0
+        # ).evaluate((True, -1))
+
         unzipped_columns = grizzly_impl.unzip_columns(
             std_expr,
             self.grouping_column_types + [WeldDouble()],
         )
+
+
         index_expr = LazyOpResult(
             grizzly_impl.get_field(unzipped_columns, 0),
             self.grouping_column_types[0],
@@ -1578,7 +1587,9 @@ class GroupByWeldSeries:
             self.grouping_column_types[0],
             1
         )
+        
         group_expr = group([index_expr, column_expr])
+        
         return SeriesWeld(
             group_expr.expr,
             WeldDouble(),
