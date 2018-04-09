@@ -6,15 +6,15 @@ import numpy as np
 pd.options.display.max_rows = 10
 
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']
-users = pd.read_table('data/ml-5m/users.dat', sep='::', header=None,
+users = pd.read_table('data/ml-2m/users.dat', sep='::', header=None,
                       names=unames)
 
 rnames = ['user_id', 'movie_id', 'rating', 'timestamp']
-ratings = pd.read_table('data/ml-5m/ratings.dat', sep='::', header=None,
+ratings = pd.read_table('data/ml-2m/ratings.dat', sep='::', header=None,
                         names=rnames)
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table('data/ml-5m/movies.dat', sep='::', header=None,
+movies = pd.read_table('data/ml-2m/movies.dat', sep='::', header=None,
                        names=mnames)
 
 start = time.time()
@@ -27,6 +27,8 @@ start = time.time()
 mean_ratings = data.pivot_table('rating', index='title', columns='gender',
                                 aggfunc='mean')
 
+print "mean ratings"
+print mean_ratings
 #print "Time for mean ratings:", (time.time() - start)
 groupby_start = time.time()
 ratings_by_title = data.groupby('title').size()

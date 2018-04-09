@@ -6,15 +6,15 @@ import numpy as np
 pd.options.display.max_rows = 10
 
 unames = ['user_id', 'gender', 'age', 'occupation', 'zip']
-users = pd.read_table('data/ml-5m/users.dat', sep='::', header=None,
+users = pd.read_table('data/ml-2m/users.dat', sep='::', header=None,
                       names=unames)
 
 rnames = ['user_id', 'movie_id', 'rating', 'timestamp']
-ratings = pd.read_table('data/ml-5m/ratings.dat', sep='::', header=None,
+ratings = pd.read_table('data/ml-2m/ratings.dat', sep='::', header=None,
                         names=rnames)
 
 mnames = ['movie_id', 'title', 'genres']
-movies = pd.read_table('data/ml-5m/movies.dat', sep='::', header=None,
+movies = pd.read_table('data/ml-2m/movies.dat', sep='::', header=None,
                        names=mnames)
 
 start = time.time()
@@ -30,8 +30,8 @@ data = gr.DataFrameWeld(data)
 mean_ratings = data.pivot_table('rating', index='title', columns='gender',
                                 aggfunc='mean')
 
-#print "mean ratings eval"
-#mean_ratings.evaluate((True, -1))
+print "mean ratings eval"
+print mean_ratings.evaluate((True, -1)).to_pandas()
 ratings_by_title = data.groupby('title').size()
 
 #print "ratings by title eval"
@@ -80,5 +80,5 @@ sorted_by_diff, rating_std_by_title = gr.group_eval([sorted_by_diff, rating_std_
 end = time.time()
 
 print "Time for analysis:", (end - start)
-#print sorted_by_diff
-#print rating_std_by_title
+print sorted_by_diff
+print rating_std_by_title
