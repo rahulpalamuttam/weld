@@ -215,7 +215,10 @@ fn infer_locally(expr: &mut PartialExpr, env: &mut TypeMap) -> WeldResult<bool> 
             }
         }
 
-        CUDF { ref return_ty, .. } => push_complete_type(&mut expr.ty, *return_ty.clone(), "CUDF"),
+        CUDF { ref return_ty, .. } => push_type(&mut expr.ty, return_ty, "CUDF"),
+
+        Serialize(_) => push_complete_type(&mut expr.ty, Vector(Box::new(Scalar(I8))), "Serialize"),
+        Deserialize{ ref value_ty, .. } => push_type(&mut expr.ty, value_ty, "Deserialize"),
 
         Let { ref mut body, .. } => sync_types(&mut expr.ty, &mut body.ty, "Let body"),
 
@@ -465,6 +468,17 @@ fn infer_locally(expr: &mut PartialExpr, env: &mut TypeMap) -> WeldResult<bool> 
                         match **i {
                             Some(ref mut e) => {
                                 changed |= try!(push_complete_type(&mut e.ty, Scalar(I64), "iter"))
+                            }
+                            None => unreachable!()
+                        };
+                    }
+                }
+                /* For Nd-Iter */
+                if iter.shape.is_some() {
+                    for i in [&mut iter.shape, &mut iter.strides].iter_mut() {
+                        match **i {
+                            Some(ref mut e) => {
+                                changed |= try!(push_complete_type(&mut e.ty, Vector(Box::new(Scalar(I64))), "iter"))
                             }
                             None => return weld_err!("Impossible"),
                         };

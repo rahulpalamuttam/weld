@@ -213,6 +213,18 @@ impl PartialExpr {
                 }
             }
 
+            Deserialize {
+                ref value,
+                ref value_ty,
+            } => {
+                let value = typed_box(value)?;
+                let value_ty: Box<Type> = Box::new(try!(value_ty.to_type()));
+                Deserialize {
+                    value: value,
+                    value_ty: value_ty,
+                }
+            }
+
             BinOp {
                 kind,
                 ref left,
@@ -359,12 +371,23 @@ impl PartialExpr {
                         Some(ref s) => Some(try!(typed_box(s))),
                         None => None,
                     };
+                    let shape = match iter.shape {
+                        Some(ref s) => Some(try!(typed_box(s))),
+                        None => None,
+                    };
+                    let strides = match iter.strides {
+                        Some(ref s) => Some(try!(typed_box(s))),
+                        None => None,
+                    };
+
                     let typed_iter = Iter {
                         data: try!(typed_box(&iter.data)),
                         start: start,
                         end: end,
                         stride: stride,
                         kind: iter.kind.clone(),
+                        shape: shape,
+                        strides: strides,
                     };
                     typed_iters.push(typed_iter);
                 }
@@ -428,6 +451,7 @@ impl PartialExpr {
             }
             Negate(ref expr) => Negate(try!(typed_box(expr))),
             Broadcast(ref expr) => Broadcast(try!(typed_box(expr))),
+            Serialize(ref expr) => Serialize(try!(typed_box(expr))),
         };
 
         Ok(TypedExpr {

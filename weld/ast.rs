@@ -237,7 +237,8 @@ pub struct Expr<T: TypeBounds> {
 pub enum IterKind {
     ScalarIter, // A standard scalar iterator.
     SimdIter, // A vector iterator.
-    FringeIter,
+    FringeIter, // A fringe iterator, handling the fringe of a vector iter.
+    NdIter,     // multi-dimensional nd-iter
     RangeIter,
 }
 
@@ -248,6 +249,7 @@ impl fmt::Display for IterKind {
             ScalarIter => "scalar",
             SimdIter => "vectorized",
             FringeIter => "fringe",
+            NdIter => "nditer",
             RangeIter => "range",
         };
         f.write_str(text)
@@ -263,8 +265,10 @@ pub struct Iter<T: TypeBounds> {
     pub end: Option<Box<Expr<T>>>,
     pub stride: Option<Box<Expr<T>>>,
     pub kind: IterKind,
+    // NdIter specific fields
+    pub strides: Option<Box<Expr<T>>>,
+    pub shape: Option<Box<Expr<T>>>,
 }
-
 
 impl<T: TypeBounds> Iter<T> {
     /// Returns true if this is a simple iterator with no start/stride/end specified
@@ -352,6 +356,11 @@ pub enum ExprKind<T: TypeBounds> {
         args: Vec<Expr<T>>,
         return_ty: Box<T>,
     },
+    Serialize(Box<Expr<T>>),
+    Deserialize {
+        value: Box<Expr<T>>,
+        value_ty: Box<T>,
+    },
     NewBuilder(Option<Box<Expr<T>>>),
     For {
         iters: Vec<Iter<T>>,
@@ -394,6 +403,8 @@ impl<T: TypeBounds> ExprKind<T> {
             Lambda  { .. } => "Lambda",
             Apply { .. } => "Apply",
             CUDF { .. } => "CUDF",
+            Serialize(_) => "Serialize",
+            Deserialize { .. } => "Deserialize",
             NewBuilder(_) => "NewBuilder",
             For { .. } => "For",
             Merge { .. } => "Merge",
@@ -624,6 +635,8 @@ impl<T: TypeBounds> Expr<T> {
                     vec![]
                 }
             }
+            Serialize(ref e) => vec![e.as_ref()],
+            Deserialize { ref value, .. } => vec![value.as_ref()],
             CUDF { ref args, .. } => args.iter().collect(),
             Negate(ref t) => vec![t.as_ref()],
             Broadcast(ref t) => vec![t.as_ref()],
@@ -729,6 +742,8 @@ impl<T: TypeBounds> Expr<T> {
                     vec![]
                 }
             }
+            Serialize(ref mut e) => vec![e.as_mut()],
+            Deserialize { ref mut value, .. } => vec![value.as_mut()],
             CUDF { ref mut args, .. } => args.iter_mut().collect(),
             Negate(ref mut t) => vec![t.as_mut()],
             Broadcast(ref mut t) => vec![t.as_mut()],
@@ -823,6 +838,8 @@ impl<T: TypeBounds> Expr<T> {
                     matches = matches && return_ty1 == return_ty2;
                     Ok(matches)
                 }
+                (&Serialize(_), &Serialize(_)) => Ok(true),
+                (&Deserialize { ref value_ty, .. }, &Deserialize { value_ty: ref value_ty2, .. }) if value_ty == value_ty2 => Ok(true),
                 (&Literal(ref l), &Literal(ref r)) if l == r => Ok(true),
                 (&Ident(ref l), &Ident(ref r)) => {
                     if let Some(lv) = sym_map.get(l) {

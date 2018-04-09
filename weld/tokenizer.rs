@@ -14,14 +14,13 @@ use regex::Regex;
 
 use super::error::*;
 
-use std::ascii::AsciiExt;
-
 #[derive(Clone,Debug,PartialEq)]
 pub enum Token {
     TI32Literal(i32),
     TI64Literal(i64),
     TF32Literal(f32),
     TF64Literal(f64),
+    TI16Literal(i16),
     TI8Literal(i8),
     TBoolLiteral(bool),
     TStringLiteral(String),
@@ -45,10 +44,12 @@ pub enum Token {
     TF64,
     TBool,
     TVec,
+    TDict,
     TZip,
     TScalarIter,
     TSimdIter,
     TFringeIter,
+    TNdIter,
     TRangeIter,
     TLen,
     TLookup,
@@ -68,6 +69,8 @@ pub enum Token {
     TSimd,
     TSelect,
     TBroadcast,
+    TSerialize,
+    TDeserialize,
     TLog,
     TErf,
     TSqrt,
@@ -170,9 +173,9 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
         // Regular expressions for various types of tokens.
         static ref KEYWORD_RE: Regex = Regex::new(
             "^(if|for|zip|len|lookup|keyexists|slice|sort|exp|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|\
-             log|erf|sqrt|simd|select|broadcast|\
-             iterate|cudf|simditer|fringeiter|rangeiter|iter|merge|result|let|true|false|macro|\
-             i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|vec|appender|merger|vecmerger|\
+             log|erf|sqrt|simd|select|broadcast|serialize|deserialize|\
+             iterate|cudf|simditer|fringeiter|rangeiter|nditer|iter|merge|result|let|true|false|macro|\
+             i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|vec|dict|appender|merger|vecmerger|\
              dictmerger|groupmerger|tovec|min|max|pow)$").unwrap();
 
         static ref COMMENT_RE: Regex = Regex::new("#.*$").unwrap();
@@ -182,6 +185,10 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
         static ref I8_BASE_10_RE: Regex = Regex::new(r"^[0-9]+[cC]$").unwrap();
         static ref I8_BASE_2_RE: Regex = Regex::new(r"^0b[0-1]+[cC]$").unwrap();
         static ref I8_BASE_16_RE: Regex = Regex::new(r"^0x[0-9a-fA-F]+[cC]$").unwrap();
+
+	static ref I16_BASE_10_RE: Regex = Regex::new(r"[0-9]+si$").unwrap();
+	static ref I16_BASE_2_RE: Regex = Regex::new(r"^0b[0-1]+si$").unwrap();
+        static ref I16_BASE_16_RE: Regex = Regex::new(r"^0x[0-9a-fA-F]+si$").unwrap();
 
         static ref I32_BASE_10_RE: Regex = Regex::new(r"^[0-9]+$").unwrap();
         static ref I32_BASE_2_RE: Regex = Regex::new(r"^0b[0-1]+$").unwrap();
@@ -227,6 +234,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "f64" => TF64,
                             "bool" => TBool,
                             "vec" => TVec,
+                            "dict" => TDict,
                             "appender" => TAppender,
                             "merger" => TMerger,
                             "dictmerger" => TDictMerger,
@@ -237,6 +245,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "iter" => TScalarIter,
                             "simditer" => TSimdIter,
                             "fringeiter" => TFringeIter,
+                            "nditer" => TNdIter,
                             "rangeiter" => TRangeIter,
                             "len" => TLen,
                             "lookup" => TLookup,
@@ -260,6 +269,8 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "simd" => TSimd,
                             "select" => TSelect,
                             "broadcast" => TBroadcast,
+                            "serialize" => TSerialize,
+                            "deserialize" => TDeserialize,
                             "true" => TBoolLiteral(true),
                             "false" => TBoolLiteral(false),
                             "min" => TMin,
@@ -281,6 +292,12 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
             tokens.push(try!(parse_i8_literal(text, 2)))
         } else if I8_BASE_16_RE.is_match(text) {
             tokens.push(try!(parse_i8_literal(text, 16)))
+        } else if I16_BASE_10_RE.is_match(text) {
+            tokens.push(try!(parse_i16_literal(text, 10)))
+        } else if I16_BASE_2_RE.is_match(text) {
+            tokens.push(try!(parse_i16_literal(text, 2)))
+        } else if I16_BASE_16_RE.is_match(text) {
+            tokens.push(try!(parse_i16_literal(text, 16)))
         } else if I32_BASE_10_RE.is_match(text) {
             tokens.push(try!(parse_i32_literal(text, 10)))
         } else if I32_BASE_2_RE.is_match(text) {
@@ -351,6 +368,7 @@ impl fmt::Display for Token {
             TI64Literal(ref value) => write!(f, "{}L", value),
             TF32Literal(ref value) => write!(f, "{}F", value),
             TF64Literal(ref value) => write!(f, "{}", value),  // TODO: force .0?
+            TI16Literal(ref value) => write!(f, "{}si", value),
             TI8Literal(ref value) => write!(f, "{}C", value),
             TBoolLiteral(ref value) => write!(f, "{}B", value),
             TStringLiteral(ref value) => write!(f, "\"{}\"", value),
@@ -364,6 +382,7 @@ impl fmt::Display for Token {
                     TI64Literal(_) => "",
                     TF32Literal(_) => "",
                     TF64Literal(_) => "",
+                    TI16Literal(_) => "",
                     TI8Literal(_) => "",
                     TBoolLiteral(_) => "",
                     TStringLiteral(_) => "",
@@ -388,6 +407,7 @@ impl fmt::Display for Token {
                     TF64 => "f64",
                     TBool => "bool",
                     TVec => "vec",
+                    TDict => "dict",
                     TAppender => "appender",
                     TMerger => "merger",
                     TDictMerger => "dictmerger",
@@ -398,6 +418,7 @@ impl fmt::Display for Token {
                     TScalarIter => "iter",
                     TSimdIter => "simditer",
                     TFringeIter => "fringeiter",
+                    TNdIter => "nditer",
                     TRangeIter => "rangeiter",
                     TLen => "len",
                     TLookup => "lookup",
@@ -421,6 +442,8 @@ impl fmt::Display for Token {
                     TSimd => "simd",
                     TSelect => "select",
                     TBroadcast => "broadcast",
+                    TSerialize => "serialize",
+                    TDeserialize => "deserialize",
                     TOpenParen => "(",
                     TCloseParen => ")",
                     TOpenBracket => "[",
@@ -469,6 +492,18 @@ fn parse_i8_literal(input: &str, base: u32) -> WeldResult<Token> {
     match i8::from_str_radix(slice, base) {
         Ok(value) => Ok(Token::TI8Literal(value)),
         Err(_) => weld_err!("Invalid i8 literal: {}", input),
+    }
+}
+
+fn parse_i16_literal(input: &str, base: u32) -> WeldResult<Token> {
+    let slice = if base == 10 {
+        &input[..input.len() - 2]
+    } else {
+        &input[2..input.len() - 2]
+    };
+    match i16::from_str_radix(slice, base) {
+        Ok(value) => Ok(Token::TI16Literal(value)),
+        Err(_) => weld_err!("Invalid i16 literal: {}", input), 
     }
 }
 
@@ -612,6 +647,7 @@ fn basic_tokenize() {
                     TEndOfInput]);
     assert!(tokenize("0a").is_err());
 
+    assert_eq!(tokenize("42si").unwrap(), vec![TI16Literal(42i16), TEndOfInput]);
     assert_eq!(tokenize("0b10").unwrap(), vec![TI32Literal(2), TEndOfInput]);
     assert_eq!(tokenize("0x10").unwrap(),
                vec![TI32Literal(16), TEndOfInput]);
