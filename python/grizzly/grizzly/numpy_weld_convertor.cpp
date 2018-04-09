@@ -3,7 +3,7 @@
 #include "common.h"
 #include <cstdlib>
 #include <cstdio>
-#include <omp.h>
+//#include <omp.h>
 
 using namespace std;
 
