@@ -3,7 +3,7 @@ use std::process::Command;
 
 fn main() {
     let project_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    //println!("cargo:rustc-link-lib=dylib=cuda");
+    println!("cargo:rustc-link-lib=dylib=cuda");
 
     let status = Command::new("make")
         .arg("clean")
