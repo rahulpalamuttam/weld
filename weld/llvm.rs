@@ -717,6 +717,9 @@ impl LlvmGenerator {
 
     /// Generates code to store register-based mergers back to their stack-based counterparts.
     fn gen_store_merger_regs(&mut self, params_sorted: &BTreeMap<Symbol, Type>, ctx: &mut FunctionContext) -> WeldResult<()> {
+    
+        // Test call
+        ctx.code.add(format!("call void @weld_ptx_test()"));
         for (arg, ty) in params_sorted.iter() {
             match *ty {
                 Builder(ref bk, _) => {
@@ -900,7 +903,6 @@ impl LlvmGenerator {
                                  par_for: &ParallelForData,
                                  func: &SirFunction,
                                  ctx: &mut FunctionContext) -> WeldResult<()> {
-
         if !(par_for.data.len() == 1 && par_for.data[0].start.is_none()) {
             for (i, iter) in par_for.data.iter().enumerate() {
                 if iter.kind == IterKind::NdIter {
@@ -1239,6 +1241,7 @@ impl LlvmGenerator {
                      par_for: &ParallelForData,
                      func: &SirFunction,
                      ctx: &mut FunctionContext) -> WeldResult<()> {
+        println!("random!!!");
         let bld_ty_str = self.llvm_type(func.params.get(&par_for.builder).unwrap())?;
         let bld_param_str = llvm_symbol(&par_for.builder);
         let bld_arg_str = llvm_symbol(&par_for.builder_arg);
@@ -1520,6 +1523,7 @@ impl LlvmGenerator {
             let lower_bound = ctx.var_ids.next();
             let upper_bound_ptr = ctx.var_ids.next();
             let upper_bound = ctx.var_ids.next();
+            println!("ptx test!");
             ctx.code.add(format!("%cur.tid = call i32 @weld_rt_thread_id()"));
             ctx.code.add(format!("{} = getelementptr %work_t, %work_t* %cur.work, i32 0, i32 1", lower_bound_ptr));
             ctx.code.add(format!("{} = load i64, i64* {}", lower_bound, lower_bound_ptr));
@@ -2686,6 +2690,8 @@ impl LlvmGenerator {
             }
 
             UnaryOp { op, ref child, } => {
+                println!("UnaryOp!");
+                ctx.code.add(format!("call void @weld_ptx_test()"));
                 self.gen_unary_op(ctx, func, output, child, op)?
             }
             

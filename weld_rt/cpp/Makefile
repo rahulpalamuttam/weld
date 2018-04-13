@@ -34,8 +34,14 @@ merger.o: merger.cpp
 runtime.o: runtime.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
 
+cuda-test.o: cuda-test.cpp
+	#${CLANG} -O2 $< -g -c -I/usr/local/cuda-8.0/include -lcuda -o $@
+	#${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
+	${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -c $< -o $@
+
 weldrt.o: vb.o dict.o merger.o runtime.o inline.o
 	ld -r $^ -o $@
+
 
 ${LIB}: weldrt.o
 	ar rcs $@ $^
