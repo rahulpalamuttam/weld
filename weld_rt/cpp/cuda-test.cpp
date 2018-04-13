@@ -4,7 +4,6 @@
 #include "cuda.h"
 #include <cuda_runtime.h>
 #include <unistd.h>
-#include <chrono>
 #include <thread>
 
 void checkCudaErrors(CUresult err) {
@@ -129,9 +128,6 @@ extern "C" void weld_ptx_test() {
     checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
                              blockSizeX, blockSizeY, blockSizeZ,
                              0, NULL, KernelParams, NULL));
-    //printf("going to sleep!\n");
-    //usleep(50000);
-    //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     //cudaDeviceSynchronize();
     //// Retrieve device data
     checkCudaErrors(cuMemcpyDtoH(&hostC[0], devBufferC, sizeof(float)*16));
