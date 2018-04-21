@@ -21,6 +21,10 @@ void checkCudaErrors(CUresult err) {
   assert(err == CUDA_SUCCESS);
 }
 
+/* FIXME: use void *, or declare multiple definitions? can we do that with prelude's? */
+extern "C" void weld_ptx_execute(double *A, double *B, void *output, int size) {
+    printf("weld ptx execute called!\n");
+}
 
 /* pari: testing ptx execution */
 extern "C" void weld_ptx_test() {
@@ -91,26 +95,23 @@ extern "C" void weld_ptx_test() {
     CUdeviceptr devBufferB;
     CUdeviceptr devBufferC;
 
-    checkCudaErrors(cuMemAlloc(&devBufferA, sizeof(float)*16));
-    checkCudaErrors(cuMemAlloc(&devBufferB, sizeof(float)*16));
-    checkCudaErrors(cuMemAlloc(&devBufferC, sizeof(float)*16));
+    checkCudaErrors(cuMemAlloc(&devBufferA, sizeof(double)*16));
+    checkCudaErrors(cuMemAlloc(&devBufferB, sizeof(double)*16));
+    checkCudaErrors(cuMemAlloc(&devBufferC, sizeof(double)*16));
 
-    float* hostA = new float[16];
-    float* hostB = new float[16];
-    float* hostC = new float[16];
+    double* hostA = new double[16];
+    double* hostB = new double[16];
+    double* hostC = new double[16];
 
     // Populate input
     for (unsigned i = 0; i != 16; ++i) {
-        printf("i = %d\n", i);
-        hostA[i] = (float)i;
-        printf("hostA[i] = %f\n", hostA[i]);
-        hostB[i] = (float)(2*i);
-        printf("hostB[i] = %f\n", hostB[i]);
+        hostA[i] = (double)i;
+        hostB[i] = (double)(2*i);
         hostC[i] = 0.0f; 
     }
 
-    checkCudaErrors(cuMemcpyHtoD(devBufferA, &hostA[0], sizeof(float)*16));
-    checkCudaErrors(cuMemcpyHtoD(devBufferB, &hostB[0], sizeof(float)*16));
+    checkCudaErrors(cuMemcpyHtoD(devBufferA, &hostA[0], sizeof(double)*16));
+    checkCudaErrors(cuMemcpyHtoD(devBufferB, &hostB[0], sizeof(double)*16));
 
 
     unsigned blockSizeX = 16;
@@ -128,9 +129,9 @@ extern "C" void weld_ptx_test() {
     checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
                              blockSizeX, blockSizeY, blockSizeZ,
                              0, NULL, KernelParams, NULL));
-    //cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
     //// Retrieve device data
-    checkCudaErrors(cuMemcpyDtoH(&hostC[0], devBufferC, sizeof(float)*16));
+    checkCudaErrors(cuMemcpyDtoH(&hostC[0], devBufferC, sizeof(double)*16));
 
 
     //std::cout << "Results:\n";
@@ -153,3 +154,4 @@ extern "C" void weld_ptx_test() {
     checkCudaErrors(cuModuleUnload(cudaModule));
     checkCudaErrors(cuCtxDestroy(context));
 }
+
