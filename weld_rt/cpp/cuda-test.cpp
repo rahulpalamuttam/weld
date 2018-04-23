@@ -22,19 +22,25 @@ void checkCudaErrors(CUresult err) {
 }
 
 /* FIXME: use void *, or declare multiple definitions? can we do that with prelude's? */
-extern "C" void weld_ptx_execute(double *A, double *B, void *output, int size) {
+//extern "C" void weld_ptx_execute(void *A, void *B, void *output, int size) {
+extern "C" void weld_ptx_execute(void *input1, void *input2, void *output, int size) {
     printf("weld ptx execute called!\n");
+    printf("size = %d\n", size);
+    double *test = (double *) input1;
+    for (int i = 0; i < 10; i++) {
+        printf("i = %d, input1 = %f\n", i, test[i]);
+    }
 }
 
 /* pari: testing ptx execution */
 extern "C" void weld_ptx_test() {
-    
+
     // just to test cuda runtime library.
     //int deviceCount, device;
     //int gpuDeviceCount = 0;
     //struct cudaDeviceProp properties;
     //cudaError_t cudaResultCode = cudaGetDeviceCount(&deviceCount);
-    //if (cudaResultCode != cudaSuccess) 
+    //if (cudaResultCode != cudaSuccess)
         //deviceCount = 0;
     //[> machines with no GPUs can still report one emulation device <]
     //for (device = 0; device < deviceCount; ++device) {
@@ -80,8 +86,8 @@ extern "C" void weld_ptx_test() {
     }
     std::string str((std::istreambuf_iterator<char>(t)),
                 std::istreambuf_iterator<char>());
-    
-    //// Create driver context 
+
+    //// Create driver context
     checkCudaErrors(cuCtxCreate(&context, 0, device));
 
     //// Create module for object
@@ -107,7 +113,7 @@ extern "C" void weld_ptx_test() {
     for (unsigned i = 0; i != 16; ++i) {
         hostA[i] = (double)i;
         hostB[i] = (double)(2*i);
-        hostC[i] = 0.0f; 
+        hostC[i] = 0.0f;
     }
 
     checkCudaErrors(cuMemcpyHtoD(devBufferA, &hostA[0], sizeof(double)*16));
