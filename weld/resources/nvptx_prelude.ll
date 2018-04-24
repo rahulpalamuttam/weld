@@ -32,8 +32,6 @@ declare float @__nv_acosf(float)
 declare double @__nv_atan(double)
 declare float @__nv_atanf(float)
 
-%s0 = type { double, double }
-
 ; Intrinsic to read X component of thread ID
 declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
 declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone nounwind

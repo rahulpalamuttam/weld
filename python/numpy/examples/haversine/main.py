@@ -40,10 +40,15 @@ def haversine(lat1, lon1, lat2, lon2):
 
     a0 = np.sin(dlat/2.0)
     a1 = np.sin(dlon/2.0)
-    return a0
+
     a = a0*a0 + np.cos(lat1) * np.cos(lat2) * a1*a1
 
-    c = 2.0 * np.arcsin(np.sqrt(a))
+    # return a
+
+    # c = 2.0 * np.arcsin(np.sqrt(a))
+    # FIXME: temp test.
+    c = 2.0 * (np.sqrt(a))
+
     mi = miles_constant * c
     return mi
 
@@ -153,8 +158,6 @@ def run_haversine_with_scalar(args):
             lazy_ops = generate_lazy_op_list([dist2])
             dist2 = gr.group(lazy_ops).evaluate(True, passes=wn.CUR_PASSES)[0]
         else:
-            print("dist2 code: ")
-            print(dist2.weldobj.weld_code)
             dist2 = dist2.evaluate()
 
         end = time.time()
@@ -171,7 +174,7 @@ def run_haversine_with_scalar(args):
 parser = argparse.ArgumentParser(
     description="give num_els of arrays used for nbody"
 )
-parser.add_argument('-s', "--scale", type=float, required=False, default=0.001,
+parser.add_argument('-s', "--scale", type=float, required=False, default=1,
                     help=("how much to scale up the orig dataset? Used so we",
                     "can run it on larger data sizes"))
 parser.add_argument('-g', "--use_group", type=int, default=0,

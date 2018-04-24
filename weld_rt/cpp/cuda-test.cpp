@@ -9,7 +9,7 @@
 //#include <stdio.h>
 #include <math.h>
 
-#define THREAD_BLOCK_SIZE 128
+#define THREAD_BLOCK_SIZE 512
 
 void checkCudaErrors(CUresult err) {
   //printf("cuda err = %d\n", (size_t)err);

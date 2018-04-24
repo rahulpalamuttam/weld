@@ -1833,10 +1833,6 @@ impl LlvmGenerator {
         // TODO: Move this to LlvmGenerator subclass?
         let gpu_ctx = &mut FunctionContext::new(par_for.innermost);
         /* Part 1: Generate the kernel */
-        /* 1a) prelude */
-        let mut nvptx_prelude_code = CodeBuilder::new();
-        nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
-        nvptx_prelude_code.add("\n");
 
         /* 1b) generate the function header (and allocations) for the kernel */
         let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
@@ -1858,6 +1854,12 @@ impl LlvmGenerator {
         } else {
             gpu_ctx.code.add(NVVM_END2);
         }
+
+        /* prelude */
+        let mut nvptx_prelude_code = CodeBuilder::new();
+        nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
+        nvptx_prelude_code.add("\n");
+        nvptx_prelude_code.add(self.prelude_code.result());
 
         /* FIXME: temporary, write to file so we can compile it manually */
         let mut code :String = format!(";PRELUDE\n{}\n{}\n{}\n",

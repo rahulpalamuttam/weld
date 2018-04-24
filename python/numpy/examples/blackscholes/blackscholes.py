@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-
 import argparse
 import time
+from os import sys, path
+sys.path.append("/lfs/1/pari/weld/python/numpy")
 from weldnumpy import weldarray
 import numpy as np
 import weldnumpy as wn
