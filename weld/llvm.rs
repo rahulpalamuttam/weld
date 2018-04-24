@@ -5,6 +5,7 @@ use easy_ll;
 
 extern crate time;
 extern crate fnv;
+extern crate libc;
 
 use time::PreciseTime;
 
@@ -93,6 +94,10 @@ pub struct WeldOutputArgs {
     pub errno: WeldRuntimeErrno,
 }
 
+#[link(name = "ptxgen")]
+extern {
+    fn generatePTX(ll: *const libc::c_char, size: libc::size_t, filename: *const libc::c_char) -> libc::c_char;
+}
 /// A compiled module holding the generated LLVM module and some additional
 /// information (e.g., the parameter and return types of the module).
 pub struct CompiledModule {
@@ -197,6 +202,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     let llvm_code = gen.result();
     let end = PreciseTime::now();
     trace!("LLVM program:\n{}\n", &llvm_code);
+    print!("LLVM program:\n{}\n", &llvm_code);
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
     debug!("Started compiling LLVM");
@@ -1764,10 +1770,11 @@ impl LlvmGenerator {
             gpu_ctx.code.add("ret void");
             gpu_ctx.code.add("}\n\n");
             gpu_ctx.code.add(NVVM_END);
-
-            println!("{}",  gpu_ctx.alloca_code.result());
-            println!("{}",  gpu_ctx.code.result());
-
+            let code = gpu_ctx.alloca_code.result();
+            let ptx_code = generatePTX(code.as_ptr(), code.len(), "simple-gpu.ll");
+            println!("GPU {}",  gpu_ctx.alloca_code.result());
+            println!("GPU {}",  gpu_ctx.code.result());
+            println!("PTX {}", ptx_code);
             /* Part 2: Compile the kernel */
 
 
