@@ -45,6 +45,11 @@ use super::CompilationStats;
 #[cfg(test)]
 use super::parser::*;
 
+/// TODO: remove this, just need for temporary testing.
+use std::fs::File;
+use std::io::{BufWriter};
+
+
 /// useful to make the code related to accessing elements from the array less verbose. An instance
 /// of VecLlvmInfo represents the llvm symbol names related to a single array in a given context.
 /// Each of the elements represents the llvm IR symbol names. e.g., type represents the llvm IR
@@ -59,6 +64,7 @@ pub struct VecLlvmInfo {
 }
 
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
+static NVPTX_PRELUDE_CODE: &'static str = include_str!("resources/nvptx_prelude.ll");
 
 /* output array, or scalar value, in which the gpu kernel will update results. Declaring it as a
  * global because we are not keeping track of it in the weld IR as this is only specific to nvvm*/
@@ -67,8 +73,12 @@ static NVVM_OUTPUT_VAL_PTR: &'static str = "%output_val";
 // FIXME: this requires unsafe blocks so quite ugly overall.
 static mut NVVM_OUTPUT_ARR_TY : Option<String> = None;
 /* idx for the gpu kernel. based on tid.x etc. */
-static NVVM_IDX: &'static str = "%idx";
-static NVVM_END: &'static str =   "!nvvm.annotations = !{!0}
+static NVVM_IDX: &'static str = "%nvvm-idx";
+
+static NVVM_END1: &'static str =   "!nvvm.annotations = !{!0}
+                                   !0 = !{void (double addrspace(1)*,
+                                   double addrspace(1)*)* @kernel, !\"kernel\", i32 1}";
+static NVVM_END2: &'static str =   "!nvvm.annotations = !{!0}
                                    !0 = !{void (double addrspace(1)*,
                                    double addrspace(1)*,
                                    double addrspace(1)*)* @kernel, !\"kernel\", i32 1}";
@@ -201,8 +211,6 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     gen.add_function_on_pointers("run", &sir_prog)?;
     let llvm_code = gen.result();
     let end = PreciseTime::now();
-    // TODO: remove.
-    //println!("LLVM Program:\n{}\n", &llvm_code);
     trace!("LLVM program:\n{}\n", &llvm_code);
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
@@ -1290,8 +1298,20 @@ impl LlvmGenerator {
         ctx.code.add("kernel.setup:");
         // TODO: generalize this to blockDim cases etc.
         // %idx can now be used to access current elements in the arrays.
+        let (tid_x, block_id_x, block_dim_x) = (ctx.var_ids.next(), ctx.var_ids.next(),
+                                      ctx.var_ids.next());
         ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone
-                             nounwind", NVVM_IDX));
+                             nounwind", tid_x));
+
+        // FIXME: how to determine index...
+        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone
+                             nounwind", block_id_x));
+        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone
+                             nounwind", block_dim_x));
+        let tmp1 = ctx.var_ids.next();
+        ctx.code.add(format!("{} = mul i32 {}, {}", tmp1, block_id_x, block_dim_x));
+        ctx.code.add(format!("{} = add i32 {}, {}", NVVM_IDX, tmp1, tid_x));
+
         // TODO: just to make sure for now, need better handling here.
         assert!(par_for.innermost);
         // Need to set up the appropriate elements for each of the input arrays
@@ -1739,9 +1759,7 @@ impl LlvmGenerator {
             output_elem_ty = inner_elem_ty_str.clone();
             /* overkill for just getting a pointer to the array, but might as well use it. */
             let arr_llvm_info = self.get_array_llvm_info(func, ctx, &iter.data, inner_elem_ty_str, true)?;
-            println!("arr llvm info prefix = {} ", arr_llvm_info.prefix);
             /* idx into the original array at iteration %cur.i */
-            // FIXME: get rid of clone.
             let arr_ptr = ctx.var_ids.next();
             ctx.code.add(format!("{} = extractvalue {} {}, 0", arr_ptr, arr_llvm_info.arr_type,
                                  arr_llvm_info.arr));
@@ -1751,12 +1769,14 @@ impl LlvmGenerator {
             num_elements = arr_llvm_info.len;
             external_func_args[i] = format!("i8* {} ", i8_arr_ptr);
         };
+        if par_for.data.len() == 1 {
+            external_func_args[1] = format!("i8* null");
+        }
 
         /* let us generate the output array - assuming it is same size and type as input
          * array, and add it to the external args as well */
         let (output_ty, _sym) = self.llvm_type_and_name(func, &par_for.data[0].data)?;
         let output_ll_prefix = llvm_prefix(&output_ty);
-        println!("output ll prefix = {} ", output_ll_prefix);
         ctx.code.add(format!("{} = call {} {}.new(i64 {})", output_arr, output_ty,
                     output_ll_prefix, num_elements));
         let output_arr_ptr = "%output_arr_ptr".to_owned();
@@ -1765,7 +1785,6 @@ impl LlvmGenerator {
         ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_output_arr_ptr, output_elem_ty,
                              output_arr_ptr));
         let output_arg = format!("i8* {} ", i8_output_arr_ptr);
-
 
         /* Assume the size is the same for all arrays. */
         let (elem_size_ptr, elem_size, alloc_size) = (ctx.var_ids.next(), ctx.var_ids.next(),
@@ -1776,14 +1795,9 @@ impl LlvmGenerator {
                              elem_size_ptr));
         ctx.code.add(format!("{} = mul i64 {}, {}", alloc_size, elem_size, num_elements));
 
-        if par_for.data.len() == 1 {
-
-        } else {
-            /* assume two inputs to the function. */
-            ctx.code.add(format!("call void @weld_ptx_execute({}, {}, {}, i64 {})", external_func_args[0],
-                external_func_args[1], output_arg, alloc_size));
-        };
-
+        println!("calling weld ptx execute");
+        ctx.code.add(format!("call void @weld_ptx_execute({}, {}, {}, i64 {}, i64 {})",
+        external_func_args[0], external_func_args[1], output_arg, num_elements, alloc_size));
         let elem_size_ptr = ctx.var_ids.next();
         let elem_size = ctx.var_ids.next();
         let run_id = ctx.var_ids.next();
@@ -1803,10 +1817,6 @@ impl LlvmGenerator {
         self.gen_store_var(&output_arr, &elem_storage_typed, &output_ty, ctx);
         ctx.code.add(format!("call void @weld_rt_set_result(i8* {})", elem_storage));
 
-        /* TODO: %ouput_arr is of type %v0, whose values should eventually be set to correct values
-         * in weld_ptx_execute. Just allocate memory for it, and set it to weld_rt_set_result. */
-        // FIXME: not sure why we need to allocate memory for it again (?)
-
         ctx.code.add("ret void");
         ctx.code.add("}\n\n");
         // TODO: don't need this?
@@ -1820,13 +1830,13 @@ impl LlvmGenerator {
             return Ok(());
         }
 
-        // TODO: Move this to LlvmGenerator subclass as the main function here.
-        /* going to do gpu code here */
+        // TODO: Move this to LlvmGenerator subclass?
         let gpu_ctx = &mut FunctionContext::new(par_for.innermost);
         /* Part 1: Generate the kernel */
-
-        /* 1a) TODO: Add target triple, data layout info, and method declarations at top of
-         * file. Can have a nvptx prelude? */
+        /* 1a) prelude */
+        let mut nvptx_prelude_code = CodeBuilder::new();
+        nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
+        nvptx_prelude_code.add("\n");
 
         /* 1b) generate the function header (and allocations) for the kernel */
         let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
@@ -1839,13 +1849,23 @@ impl LlvmGenerator {
         // FIXME pari: can there be more than one body?
         gpu_ctx.code.add(format!("br label %b.b{}", func.blocks[0].id));
         self.gen_function_body_nvvm(sir, func, gpu_ctx)?;
+
         /* end the kernel */
         gpu_ctx.code.add("ret void");
         gpu_ctx.code.add("}\n\n");
-        gpu_ctx.code.add(NVVM_END);
+        if par_for.data.len() == 1 {
+            gpu_ctx.code.add(NVVM_END1);
+        } else {
+            gpu_ctx.code.add(NVVM_END2);
+        }
 
-        //println!("{}",  gpu_ctx.alloca_code.result());
-        //println!("{}",  gpu_ctx.code.result());
+        /* FIXME: temporary, write to file so we can compile it manually */
+        let mut code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
+                                       nvptx_prelude_code.result(),gpu_ctx.alloca_code.result(),
+                                       gpu_ctx.code.result());
+        let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
+        let mut f = BufWriter::new(f);
+        f.write_all(code.as_bytes()).expect("Unable to write data");
 
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
@@ -2061,26 +2081,6 @@ impl LlvmGenerator {
                         /* pointer to the element type */
                         self.llvm_type(elem).unwrap()
                     }
-
-                    //Dict(ref key, ref value) => {
-                        //println!("dict in nvvm type");
-                        //let elem = Box::new(Struct(vec![*key.clone(), *value.clone()]));
-                        //if self.dict_names.get(&elem) == None {
-                            //self.gen_dict_definition(key, value)?;
-                            //// Generate a hash function and equality function for the key.
-                            //self.gen_hash(key)?;
-                            //self.gen_eq(key)?;
-                        //}
-                        //self.dict_names.get(&elem).unwrap().to_string()
-                    //}
-
-                    //Builder(ref bk, _) => {
-                        //println!("builder in nvvm type");
-                        //if self.bld_names.get(bk) == None {
-                            //self.gen_builder_definition(bk)?
-                        //}
-                        //self.bld_names.get(bk).unwrap().to_string()
-                    //}
 
                     _ => {
                         return weld_err!("Unsupported type for nvvm {}", print_type(ty))?
@@ -2887,13 +2887,45 @@ impl LlvmGenerator {
                         }
                     }
                     _ => {
-                        self.gen_statement(s, func, ctx)?
+                        self.gen_statement_nvvm(s, func, ctx)?;
                     }
                 }
             }
             // FIXME: is this going to be a problem -- what would terminator conditions for nvvm
             // be?
             //self.gen_terminator(&b.terminator, sir, func, ctx)?
+        }
+        Ok(())
+    }
+
+    fn gen_statement_nvvm(&mut self, statement: &Statement, func: &SirFunction, ctx: &mut FunctionContext) -> WeldResult<()> {
+        // TODO: might not need this.
+        let ref output = statement.output.clone().unwrap_or(Symbol::new("unused", 0));
+        ctx.code.add(format!("; {}", statement));
+        if self.trace_run {
+            self.gen_puts(&format!("  {}", statement), ctx);
+        }
+        match statement.kind {
+            UnaryOp { op, ref child, } => {
+                let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
+                let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
+                let child_ty = func.symbol_type(child)?;
+
+                let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
+
+                if let Scalar(ref ty) = *child_ty {
+                    let res_tmp = ctx.var_ids.next();
+                    let op_name = nvvm_scalar_unaryop(op, ty)?;
+                    ctx.code.add(format!("{} = call {} {}({} {})", res_tmp, child_ll_ty, op_name, child_ll_ty, child_tmp));
+                    self.gen_store_var(&res_tmp, &output_ll_sym, &output_ll_ty, ctx);
+                } else {
+                    weld_err!("nvvm does not suport simd instructions in Unaryp")?;
+                }
+            }
+            _ => {
+                /* hand it off to the original method */
+                self.gen_statement(statement, func, ctx)?;
+            }
         }
         Ok(())
     }
@@ -3909,8 +3941,6 @@ impl LlvmGenerator {
                     // Note: we do not generate the continuation function here but just combine it
                     // with the single function we generated above.
                     ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", pf.body, arg_types));
-                    //println!("{} ", ctx.alloca_code.result());
-                    //println!("{} ", ctx.code.result());
                 } else {
                     // Generate the functions to execute the loop
                     self.gen_par_for_functions(pf, sir, &sir.funcs[pf.body])?;
@@ -4196,6 +4226,49 @@ fn llvm_binary_intrinsic(op_kind: BinOpKind, ty: &ScalarKind) -> WeldResult<&'st
         (BinOpKind::Pow, &F64) => Ok("@llvm.pow.f64"),
 
         _ => weld_err!("Unsupported binary op: {} on {}", op_kind, ty),
+    }
+}
+
+/// Return the name of the scalar NVVM instruction - from nvvm/libdevice - for the given operation
+/// and type. Notice: many of llvm unary op functions are not supported by nvvm, thus we have to
+/// rely on libdevice functions.
+fn nvvm_scalar_unaryop(op_kind: UnaryOpKind, ty: &ScalarKind) -> WeldResult<&'static str> {
+    match (op_kind, ty) {
+        (UnaryOpKind::Log, &F32) => Ok("@__nv_logf"),
+        (UnaryOpKind::Log, &F64) => Ok("@__nv_log"),
+
+        (UnaryOpKind::Exp, &F32) => Ok("@__nv_expf"),
+        (UnaryOpKind::Exp, &F64) => Ok("@__nv_exp"),
+
+        (UnaryOpKind::Sqrt, &F32) => Ok("@__nv_sqrtf"),
+        (UnaryOpKind::Sqrt, &F64) => Ok("@__nv_sqrt"),
+
+        (UnaryOpKind::Sin, &F32) => Ok("@__nv_sinf"),
+        (UnaryOpKind::Sin, &F64) => Ok("@__nv_sin"),
+
+        (UnaryOpKind::Cos, &F32) => Ok("@__nv_cosf"),
+        (UnaryOpKind::Cos, &F64) => Ok("@__nv_cos"),
+
+        (UnaryOpKind::Tan, &F32) => Ok("@__nv_tanf"),
+        (UnaryOpKind::Tan, &F64) => Ok("@__nv_tan"),
+
+        (UnaryOpKind::ASin, &F32) => Ok("@__nv_asinf"),
+        (UnaryOpKind::ASin, &F64) => Ok("@__nv_asin"),
+        (UnaryOpKind::ACos, &F32) => Ok("@__nv_acosf"),
+        (UnaryOpKind::ACos, &F64) => Ok("@__nv_acos"),
+        (UnaryOpKind::ATan, &F32) => Ok("@__nv_atanf"),
+        (UnaryOpKind::ATan, &F64) => Ok("@__nv_atan"),
+
+        (UnaryOpKind::Sinh, &F32) => Ok("@__nv_sinhf"),
+        (UnaryOpKind::Sinh, &F64) => Ok("@__nv_sinh"),
+        (UnaryOpKind::Cosh, &F32) => Ok("@__nv_coshf"),
+        (UnaryOpKind::Cosh, &F64) => Ok("@__nv_cosh"),
+        (UnaryOpKind::Tanh, &F32) => Ok("@__nv_tanhf"),
+        (UnaryOpKind::Tanh, &F64) => Ok("@__nv_tanh"),
+        (UnaryOpKind::Erf, &F32) => Ok("@__nv_erff"),
+        (UnaryOpKind::Erf, &F64) => Ok("@__nv_erf"),
+
+        _ => weld_err!("Unsupported unary op: {} on {}", op_kind, ty),
     }
 }
 

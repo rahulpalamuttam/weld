@@ -15,9 +15,10 @@ pub struct vec_output {
 #[link(name="weldrt", kind="static")]
 extern "C" {
     #[no_mangle]
-    pub fn weld_ptx_execute(input1: *mut c_void,
-                            input2: *mut c_void,
+    pub fn weld_ptx_execute(hostA: *mut c_void,
+                            hostB: *mut c_void,
                             output: *mut c_void,
+                            num_elements: int64_t,
                             size: int64_t);
     #[no_mangle]
     pub fn weld_ptx_test();
