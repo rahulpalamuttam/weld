@@ -1738,15 +1738,18 @@ impl LlvmGenerator {
                              ctx: &mut FunctionContext) -> WeldResult<()> {
         let mut arg_types = self.get_arg_str(&func.params, ".in")?;
         self.gen_function_header(&arg_types, func, ctx)?;
+        println!("after function header");
         let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
 
         // FIXME: make an empty array - not sure how to make empty vec and add strings to it.
         let mut external_func_args = vec!["".to_string(), "".to_string()];
+
         let elem_ty_str = self.llvm_type(&elem_ty)?;
         let mut num_elements :String = "".to_owned();
         let mut output_elem_ty :String = "".to_owned();
         let output_arr = "%output_arr";
         for (i, iter) in par_for.data.iter().enumerate() {
+            println!("i = {}", i);
             // TODO: DO WE NEED THIS?
             let inner_elem_ty_str = if par_for.data.len() == 1 {
                 elem_ty_str.clone()
@@ -1767,8 +1770,10 @@ impl LlvmGenerator {
             ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_arr_ptr, arr_llvm_info.el_type,
                                  arr_ptr));
             num_elements = arr_llvm_info.len;
+            /* TODO: should be external_func_arg.append(...) */
             external_func_args[i] = format!("i8* {} ", i8_arr_ptr);
         };
+
         if par_for.data.len() == 1 {
             external_func_args[1] = format!("i8* null");
         }
@@ -1796,29 +1801,33 @@ impl LlvmGenerator {
         ctx.code.add(format!("{} = mul i64 {}, {}", alloc_size, elem_size, num_elements));
 
         println!("calling weld ptx execute");
+
+        // TODO: new version here.
         ctx.code.add(format!("call void @weld_ptx_execute({}, {}, {}, i64 {}, i64 {})",
         external_func_args[0], external_func_args[1], output_arg, num_elements, alloc_size));
-        let elem_size_ptr = ctx.var_ids.next();
-        let elem_size = ctx.var_ids.next();
-        let run_id = ctx.var_ids.next();
-        let elem_storage = ctx.var_ids.next();
-        let elem_storage_typed = ctx.var_ids.next();
 
-        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", &elem_size_ptr, &output_ty, &output_ty));
-        ctx.code.add(format!("{} = ptrtoint {}* {} to i64", &elem_size, &output_ty, &elem_size_ptr));
+        let (output_size_ptr, output_size, output_storage, output_storage_typed) =
+            (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+        let run_id = ctx.var_ids.next();
+
+        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", &output_size_ptr, &output_ty, &output_ty));
+        ctx.code.add(format!("{} = ptrtoint {}* {} to i64", &output_size, &output_ty, &output_size_ptr));
 
         ctx.code.add(format!("{} = call i64 @weld_rt_get_run_id()", run_id));
+        /* FIXME: use weld_run_malloc or just malloc? */
         ctx.code.add(format!("{} = call i8* @weld_run_malloc(i64 {}, i64 {})",
-                                &elem_storage,
+                                &output_storage,
                                 &run_id,
-                                &elem_size));
+                                &output_size));
 
-        ctx.code.add(format!("{} = bitcast i8* {} to {}*", &elem_storage_typed, &elem_storage, &output_ty));
-        self.gen_store_var(&output_arr, &elem_storage_typed, &output_ty, ctx);
-        ctx.code.add(format!("call void @weld_rt_set_result(i8* {})", elem_storage));
+        ctx.code.add(format!("{} = bitcast i8* {} to {}*", &output_storage_typed, &output_storage, &output_ty));
+        self.gen_store_var(&output_arr, &output_storage_typed, &output_ty, ctx);
+        ctx.code.add(format!("call void @weld_rt_set_result(i8* {})", output_storage));
 
         ctx.code.add("ret void");
         ctx.code.add("}\n\n");
+        println!("end of gen function: ");
+        println!("{}", ctx.code.result());
         // TODO: don't need this?
         Ok(())
     }
@@ -1854,7 +1863,6 @@ impl LlvmGenerator {
         } else {
             gpu_ctx.code.add(NVVM_END2);
         }
-
         /* prelude */
         let mut nvptx_prelude_code = CodeBuilder::new();
         nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
@@ -1868,6 +1876,8 @@ impl LlvmGenerator {
         let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(code.as_bytes()).expect("Unable to write data");
+
+        println!("len = {} ", par_for.data.len());
 
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
@@ -2869,7 +2879,7 @@ impl LlvmGenerator {
     /// Generate the main computational code for a program. Called after the data has been setup in
     /// gen_kernel_setup_nvvm. The main difference with llvm version (gen_function_body) is that we
     /// don't call builders (like merger, appender).
-    fn gen_function_body_nvvm(&mut self, sir: &SirProgram, func: &SirFunction, ctx: &mut
+    fn gen_function_body_nvvm(&mut self, _sir: &SirProgram, func: &SirFunction, ctx: &mut
                               FunctionContext) -> WeldResult<()> {
         for b in func.blocks.iter() {
             ctx.code.add(format!("b.b{}:", b.id));
@@ -3939,6 +3949,7 @@ impl LlvmGenerator {
                      * continuation function generated by self.gen_top_level_function(sir,
                      * &sir.funcs[pf.cont]).
                      * TODO: should add the boundary checks here as well. */
+                    println!("par for functions nvvm done");
 
                     // Note: we do not generate the continuation function here but just combine it
                     // with the single function we generated above.
