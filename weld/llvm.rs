@@ -1762,10 +1762,24 @@ impl LlvmGenerator {
                                 &input_alloc_size));
         ctx.code.add(format!("{} = bitcast i8* {} to {}*", &input_args, &input_args_tmp, &input_arg_type));
 
-        let sorted_data = par_for.data.clone();
-
-        for (i, iter) in par_for.data.iter().enumerate() {
-            // TODO: DO WE NEED THIS?
+        /* iterate over params as opposed to par_for.data because right now we are setting up the
+         * parameters to be passed in to weld_ptx_execute, so we want them to be in the same order
+         * as they are passed in to weld functions so the ptx code we generated would be
+         * appropriate to run on these input arguments */
+        for (i, (arg, ty)) in func.params.iter().enumerate() {
+            /* we only want to pass the vectors from the parameters as arguments to
+             * weld_ptx_execute. These correspond to the elements in par_for.data  */
+            // TODO: this pattern is being used at least three times, find a way to check it with
+            // fewer lines.
+            match *ty {
+                Vector(_) => {
+                    /* go on to set the argument */
+                }
+                _ => {
+                    continue;
+                }
+            }
+            // TODO: maybe shouldn't depend on par_for.data?
             let inner_elem_ty_str = if par_for.data.len() == 1 {
                 elem_ty_str.clone()
             } else {
@@ -1775,8 +1789,7 @@ impl LlvmGenerator {
                 }
             };
             output_elem_ty = inner_elem_ty_str.clone();
-            /* overkill for just getting a pointer to the array, but might as well use it. */
-            let arr_llvm_info = self.get_array_llvm_info(func, ctx, &iter.data, inner_elem_ty_str, true)?;
+            let arr_llvm_info = self.get_array_llvm_info(func, ctx, arg, inner_elem_ty_str, true)?;
             /* idx into the original array at iteration %cur.i */
             let arr_ptr = ctx.var_ids.next();
             ctx.code.add(format!("{} = extractvalue {} {}, 0", arr_ptr, arr_llvm_info.arr_type,
@@ -1879,7 +1892,6 @@ impl LlvmGenerator {
 
         /* 1b) generate the function header (and allocations) for the kernel */
         let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
-        println!("nvvm arg types = {} ", nvvm_arg_types);
         self.gen_function_header_nvvm(&nvvm_arg_types, func, gpu_ctx)?;
 
         /* 1c) gen the indexing etc. Follow same conventions as gen_loop_iteration_setup, but
@@ -1941,6 +1953,7 @@ impl LlvmGenerator {
         }
         let mut ctx = &mut FunctionContext::new(par_for.innermost);
         let mut arg_types = self.get_arg_str(&func.params, ".in")?;
+
         // Add the lower and upper index to the standard function params.
         arg_types.push_str(", i64 %lower.idx, i64 %upper.idx");
 
