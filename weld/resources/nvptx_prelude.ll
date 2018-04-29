@@ -36,3 +36,5 @@ declare float @__nv_atanf(float)
 declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
 declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone nounwind
 declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone nounwind
+
+

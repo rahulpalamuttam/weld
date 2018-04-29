@@ -1,5 +1,9 @@
 ; Common prelude to add at the start of generated LLVM modules.
 
+
+; argument type for weld_ptx_execute
+%ptx_input_arg = type { i8*, i64, i64 }
+
 ; Unsigned data types -- we use these in the generated code for clarity and to make
 ; template substitution work nicely when calling type-specific functions
 %u8 = type i8;
@@ -84,7 +88,7 @@ declare i32 @puts(i8* nocapture) nounwind
 ; Weld runtime functions
 
 declare void    @weld_ptx_test()
-declare void    @weld_ptx_execute(i8*, i8*, i8*, i64, i64)
+declare void    @weld_ptx_execute(i8*, i32, i8*)
 declare i64     @weld_run_begin(void (%work_t*)*, i8*, i64, i32)
 declare i8*     @weld_run_get_result(i64)
 

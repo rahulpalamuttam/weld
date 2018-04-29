@@ -26,29 +26,52 @@ void checkCudaErrors(CUresult err) {
   assert(err == CUDA_SUCCESS);
 }
 
+typedef struct ptx_arg {
+    double *data;
+    //int32_t size;
+    //int32_t num_elements;
+    int64_t size;
+    int64_t num_elements;
+} ptx_arg;
+
+/* debug helper */
+void print_vals(ptx_arg input) {
+    printf("printing out vals from given input!\n");
+    for (int i = 0; i < input.num_elements; i++) {
+        printf("value at %d = %f;  ", i, input.data[i]);
+    }
+    printf("**************************************\n");
+}
+
 /*
- * @hostA: First array on which the operation is to be performed. This cannot be NULL.
- * @hostB: Second array. If the operations are all unary, then this can be NULL, and it would be
- * ignored.
- * @output: For now, we are assuming an output of the same length as hostA - which would presumably
- * be filled in by the PTX code passed in.
+ * TODO: update.
  * @num_elements: number of elements in the host arrays and output.
- * @size: size in bytes of the host arrays and output.
  */
-extern "C" void weld_ptx_execute(void *hostA, void *hostB, void *output, int num_elements,
-        int size)
+extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
 {
+    /* FIXME: need to make sure arg2 is converted to appropriate form on both sides etc. */
     printf("weld ptx execute called!\n");
-    printf("size = %d\n", size);
-    if (!hostB) {
-        printf("hostB was null!\n");
-    };
+    ptx_arg *input_args = (ptx_arg *) arg1;
+    printf("num args = %d\n", num_args);
+    printf("size of 0 input: %ld\n", input_args[0].size);
+    printf("num elements of 0 input: %ld\n", input_args[0].num_elements);
+    /* FIXME */
+    int size = input_args[0].size;
+    /* FIXME: output should be of type ptx_arg too */
+    int8_t *output = (int8_t *) arg2;
+
+    // TODO: remove.
+    //for (int i = 0; i < num_args; i++) print_vals(input_args[i]);
+    printf("**************************************\n");
+    printf("value for arg 0 = %f;\n  ", input_args[0].data[0]);
+    printf("value for arg 1 = %f;\n ", input_args[1].data[0]);
+    printf("**************************************\n");
 
     CUdevice    device;
     CUmodule    cudaModule;
     CUcontext   context;
     CUfunction  function;
-    //CUlinkState linker;       // TODO: what is the use for this?
+    ////CUlinkState linker;       // TODO: what is the use for this?
     int         devCount;
     // CUDA initialization
     // TODO: maybe this does not have to be reinitialized every time?
@@ -67,8 +90,7 @@ extern "C" void weld_ptx_execute(void *hostA, void *hostB, void *output, int num
         std::cerr << "ERROR: Device 0 is not SM 2.0 or greater\n";
     }
 
-    /* TODO: this string should be passed in. */
-    /* loading in file */
+    // TODO: this string should be passed in.
     std::ifstream t("/lfs/1/pari/kernel.ptx");
     if (!t.is_open()) {
         printf("kernel.ptx not found!\n");
@@ -77,55 +99,51 @@ extern "C" void weld_ptx_execute(void *hostA, void *hostB, void *output, int num
     std::string str((std::istreambuf_iterator<char>(t)),
                 std::istreambuf_iterator<char>());
 
-    /* Create driver context */
     checkCudaErrors(cuCtxCreate(&context, 0, device));
-    /* Create module */
     checkCudaErrors(cuModuleLoadDataEx(&cudaModule, str.c_str(), 0, 0, 0));
-    /* Get kernel function */
     checkCudaErrors(cuModuleGetFunction(&function, cudaModule, "kernel"));
 
-    CUdeviceptr devBufferA;
-    CUdeviceptr devBufferB;
-    CUdeviceptr devBufferC;
-
-    printf("before malloc\n");
-    checkCudaErrors(cuMemAlloc(&devBufferA, size));
-    checkCudaErrors(cuMemAlloc(&devBufferC, size));
-    checkCudaErrors(cuMemcpyHtoD(devBufferA, hostA, size));
-
-    if (hostB) {
-        checkCudaErrors(cuMemAlloc(&devBufferB, size));
-        checkCudaErrors(cuMemcpyHtoD(devBufferB, hostB, size));
+    CUdeviceptr dev_output;
+    /* FIXME: this should not be based on input args */
+    checkCudaErrors(cuMemAlloc(&dev_output, input_args[0].size));
+    CUdeviceptr dev_inputs[num_args];
+    for (int i = 0; i < num_args; i++) {
+        checkCudaErrors(cuMemAlloc(&dev_inputs[i], input_args[i].size));
+        checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
     }
 
-    /* FIXME: be more flexible about different dimensions? */
+    /* FIXME: be more flexible about dimensions? */
     unsigned blockSizeX = THREAD_BLOCK_SIZE;
     unsigned blockSizeY = 1;
     unsigned blockSizeZ = 1;
 
-    unsigned gridSizeX  = (size_t) ceil((float) num_elements / (float) THREAD_BLOCK_SIZE);
+    // TODO: we are implicitly assuming all of same num elements?
+    unsigned gridSizeX  = (size_t) ceil((float) input_args[0].num_elements / (float) THREAD_BLOCK_SIZE);
     unsigned gridSizeY  = 1;
     unsigned gridSizeZ  = 1;
 
-    /* Kernel parameters */
-    void *KernelParams[] = {&devBufferA, &devBufferB, &devBufferC};
-    // FIXME: this seems hacky.
-    if (!hostB) KernelParams[1] = &devBufferC;
+    void *kernel_params[num_args + 1];
+    for (int i = 0; i < num_args; i++) {
+        kernel_params[i] = (void *) &dev_inputs[i];
+    }
+    kernel_params[num_args] = (void *) &dev_output;
 
     printf("Launching kernel\n");
     //// Kernel launch
     checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
                              blockSizeX, blockSizeY, blockSizeZ,
-                             0, NULL, KernelParams, NULL));
+                             0, NULL, kernel_params, NULL));
     // TODO: does it need any synchronize call here?
 
-    //// Retrieve device data
-    checkCudaErrors(cuMemcpyDtoH(output, devBufferC, size));
+    // Retrieve device data
+    checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));
 
-    //// Clean-up
-    if (hostB) checkCudaErrors(cuMemFree(devBufferB));
-    checkCudaErrors(cuMemFree(devBufferA));
-    checkCudaErrors(cuMemFree(devBufferC));
+    for (int i = 0; i < num_args; i++) {
+        checkCudaErrors(cuMemFree(dev_inputs[i]));
+    }
+    checkCudaErrors(cuMemFree(dev_output));
+
+    // Clean-up
     checkCudaErrors(cuModuleUnload(cudaModule));
     checkCudaErrors(cuCtxDestroy(context));
 }

@@ -41,12 +41,19 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     c05 = np.float64(3.0)
     c10 = np.float64(1.5)
     rsig = rate + (vol*vol) * c05
-    vol_sqrt = vol * np.sqrt(t)
+    # vol_sqrt = vol * np.sqrt(t)
+    # vol_sqrt = vol * np.sqrt(price)
+    vol_sqrt = strike * np.sqrt(price)
+
+    print(vol[0])
+    print(price[0])
+    print(strike[0])
+
+    return rsig, vol_sqrt
 
     d1 = (np.log(price / strike) + rsig * t) / vol_sqrt
     d2 = d1 - vol_sqrt
 
-    return d1, d2
 
     # these are numpy arrays, so use scipy's erf function. scipy's ufuncs also
     # get routed through the common ufunc routing mechanism, so these work just
@@ -109,7 +116,7 @@ def run_blackscholes(args, use_weld):
     call, put = blackscholes(p, s, t, r, v, args.intermediate_eval, args.use_group)
 
     if isinstance(call, weldarray):
-        call = call.evaluate()
+        # call = call.evaluate()
         put = put.evaluate()
 	print("**************************************************")
 	print("weld took: ", time.time() - start)
@@ -139,21 +146,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.use_numpy:
-	for i in range(1):
-            call, put = run_blackscholes(args, False)
+        call, put = run_blackscholes(args, False)
         print("*********Finished Numpy**********")
     else:
         print('Not running numpy')
 
     if args.use_weld:
-	for i in range(1):
-            call2, put2 = run_blackscholes(args, True)
+        call2, put2 = run_blackscholes(args, True)
     else:
         print('Not running weld')
 
     # Correctness check.
     if args.use_numpy and args.use_weld:
+        print("numpy: ", put[0])
+        print(put2[0])
         print("Using np.allclose to compare results of NumPy and Weld for put: ",
-                np.allclose(put, put2))
+                np.allclose(put, put2.view(np.ndarray)))
+        print(np.linalg.norm(put - put2.view(np.ndarray)))
         print("Using np.allclose to compare results of NumPy and Weld for call: ",
-                np.allclose(call, call2))
+                np.allclose(call, call2.view(np.ndarray)))
