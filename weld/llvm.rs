@@ -75,14 +75,8 @@ static mut NVVM_OUTPUT_ARR_TY : Option<String> = None;
 /* idx for the gpu kernel. based on tid.x etc. */
 static NVVM_IDX: &'static str = "%nvvm-idx";
 
-static NVVM_END1: &'static str =   "!nvvm.annotations = !{!0}
-                                   !0 = !{void (double addrspace(1)*,
-                                   double addrspace(1)*)* @kernel, !\"kernel\", i32 1}";
-static NVVM_END2: &'static str =   "!nvvm.annotations = !{!0}
-                                   !0 = !{void (double addrspace(1)*,
-                                   double addrspace(1)*,
-                                   double addrspace(1)*)* @kernel, !\"kernel\", i32 1}";
-
+static NVVM_END_TEMPLATE: &'static str =   "!nvvm.annotations = !{!0}
+                                   !0 = !{void (ARGS)* @kernel, !\"kernel\", i32 1}";
 
 
 /// The default grain size for the parallel runtime.
@@ -1905,11 +1899,42 @@ impl LlvmGenerator {
         /* end the kernel */
         gpu_ctx.code.add("ret void");
         gpu_ctx.code.add("}\n\n");
-        if par_for.data.len() == 1 {
-            gpu_ctx.code.add(NVVM_END1);
-        } else {
-            gpu_ctx.code.add(NVVM_END2);
+
+        //if par_for.data.len() == 1 {
+            //gpu_ctx.code.add(NVVM_END_TEMPLATE1);
+        //} else {
+            //gpu_ctx.code.add(NVVM_END_TEMPLATE2);
+        //}
+
+        /* add the final nvvm annotations about the kernel */
+        let mut arg_types = String::new();
+        let mut output_str: String = "".to_owned();
+        for (arg, ty) in func.params.iter() {
+            match *ty {
+                Vector(_) => {
+                    /* go on to set the argument */
+                }
+                _ => {
+                    continue;
+                }
+            }
+            let arg_str = format!("{} , ", self.nvvm_type(&ty)?);
+            arg_types.push_str(&arg_str);
+            // FIXME: we are assuming output is same type as input for now. Should depend on builder
+            // type.
+            if output_str == "" {
+                output_str = format!("{} ", self.nvvm_type(&ty)?);
+            }
         }
+        arg_types.push_str(&output_str);
+        println!("arg types = {} ", arg_types);
+        //let annotation_template = format!("{}", NVVM_END_TEMPLATE);
+        //let nvvm_kernel_annotations = format!(annotation_template, arg_types);
+        let nvvm_kernel_annotations = NVVM_END_TEMPLATE.replace("ARGS", &arg_types);
+
+        println!("nvvm kernel annot: {} ", nvvm_kernel_annotations);
+        gpu_ctx.code.add(nvvm_kernel_annotations);
+
         /* prelude */
         let mut nvptx_prelude_code = CodeBuilder::new();
         nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
@@ -2144,6 +2169,11 @@ impl LlvmGenerator {
                         return weld_err!("Unsupported type for nvvm {}", print_type(ty))?
                     }
                 };
+        /* assumptions:
+         *  1. only passing in pointers to nvvm
+         *  2. only in global memory - addrspace(1)
+         * so far both these assumptions seem valid, but might need to make this more flexible.
+         */
         let addr_space :String = " addrspace(1)*".to_owned();
         base_ty.push_str(&addr_space);
         Ok(base_ty)

@@ -12,6 +12,8 @@ from grizzly.lazy_op import LazyOpResult
 
 invsqrt2 = 1.0 #0.707
 
+DEBUG_NVVM = True
+
 def get_data(num_els):
     np.random.seed(2592)
     # random prices between 1 and 101
@@ -41,19 +43,14 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     c05 = np.float64(3.0)
     c10 = np.float64(1.5)
     rsig = rate + (vol*vol) * c05
-    # vol_sqrt = vol * np.sqrt(t)
+    vol_sqrt = vol * np.sqrt(t)
+
+    # random tries.
     # vol_sqrt = vol * np.sqrt(price)
-    vol_sqrt = strike * np.sqrt(price)
-
-    print(vol[0])
-    print(price[0])
-    print(strike[0])
-
-    return rsig, vol_sqrt
+    # vol_sqrt = strike * np.sqrt(price)
 
     d1 = (np.log(price / strike) + rsig * t) / vol_sqrt
     d2 = d1 - vol_sqrt
-
 
     # these are numpy arrays, so use scipy's erf function. scipy's ufuncs also
     # get routed through the common ufunc routing mechanism, so these work just
@@ -87,7 +84,7 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
         put = weldarray(outputs[1])
 
     # if we were not using the group operator.
-    if isinstance(call, weldarray) and not use_group:
+    if isinstance(call, weldarray) and not use_group and not DEBUG_NVVM:
         call = call.evaluate()
         put = put.evaluate()
 
@@ -116,8 +113,8 @@ def run_blackscholes(args, use_weld):
     call, put = blackscholes(p, s, t, r, v, args.intermediate_eval, args.use_group)
 
     if isinstance(call, weldarray):
-        # call = call.evaluate()
-        put = put.evaluate()
+        call = call.evaluate()
+        # put = put.evaluate()
 	print("**************************************************")
 	print("weld took: ", time.time() - start)
 	print("**************************************************")
@@ -158,10 +155,8 @@ if __name__ == '__main__':
 
     # Correctness check.
     if args.use_numpy and args.use_weld:
-        print("numpy: ", put[0])
-        print(put2[0])
+        print("Using np.allclose to compare results of NumPy and Weld for call: ",
+                np.allclose(call, call2.view(np.ndarray)))
         print("Using np.allclose to compare results of NumPy and Weld for put: ",
                 np.allclose(put, put2.view(np.ndarray)))
         print(np.linalg.norm(put - put2.view(np.ndarray)))
-        print("Using np.allclose to compare results of NumPy and Weld for call: ",
-                np.allclose(call, call2.view(np.ndarray)))
