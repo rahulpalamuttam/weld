@@ -5,7 +5,8 @@ use easy_ll;
 
 extern crate time;
 extern crate fnv;
-
+extern crate libc;
+    
 use time::PreciseTime;
 
 use common::WeldRuntimeErrno;
@@ -13,6 +14,8 @@ use common::WeldRuntimeErrno;
 use std::io::Write;
 use std::path::PathBuf;
 use std::fs::OpenOptions;
+use std::ffi::CString;
+use std::ffi::CStr;
 
 use super::ast::*;
 use super::ast::Type::*;
@@ -99,6 +102,11 @@ pub struct WeldOutputArgs {
     pub output: i64,
     pub run_id: i64,
     pub errno: WeldRuntimeErrno,
+}
+
+#[link(name = "ptxgen")]
+extern {
+    fn generatePTX(ll: *const libc::c_char, size: libc::size_t, filename: *const libc::c_char) -> *const libc::c_char;
 }
 
 /// A compiled module holding the generated LLVM module and some additional
@@ -1945,14 +1953,29 @@ impl LlvmGenerator {
         let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
                                        nvptx_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                        gpu_ctx.code.result());
-        let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
+        let f = File::create("kernel.ll").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(code.as_bytes()).expect("Unable to write data");
 
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
          * it? */
-
+        let code_len = code.len();
+        let c_string_code = CString::new(code).unwrap();
+        let c_string_code_ptr: *const libc::c_char = c_string_code.as_ptr();
+        
+        let random_name = CString::new("simple-gpu.ll").unwrap();
+        let random_name_ptr: *const libc::c_char = random_name.as_ptr();
+        let ptx_code : *const libc::c_char = unsafe{ generatePTX(c_string_code_ptr, code_len, random_name_ptr) };
+        let c_str: &CStr = unsafe { CStr::from_ptr(ptx_code) };
+        let str_slice: &str = c_str.to_str().unwrap();
+        let str_buf: String = str_slice.to_owned();
+        println!("GPU {}",  gpu_ctx.alloca_code.result());
+        println!("GPU {}",  gpu_ctx.code.result());
+        println!("PTX {}", str_buf);
+        let fptx = File::create("kernel.ptx").expect("Unable to create ptx file");
+        let mut fptx = BufWriter::new(fptx);
+        fptx.write_all(str_buf.as_bytes()).expect("Unable to write data");
 
         /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
          * allocating memory for output (single value OR full array depending on builder type),
