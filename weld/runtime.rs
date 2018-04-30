@@ -15,6 +15,10 @@ pub struct vec_output {
 #[link(name="weldrt", kind="static")]
 extern "C" {
     #[no_mangle]
+    pub fn weld_ptx_execute(arg1: *mut c_void,
+                            num_args: int32_t,
+                            arg2: *mut c_void);
+    #[no_mangle]
     pub fn weld_runtime_init();
     #[no_mangle]
     pub fn weld_rt_thread_id() -> int32_t;

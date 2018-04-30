@@ -1,5 +1,9 @@
 ; Common prelude to add at the start of generated LLVM modules.
 
+
+; argument type for weld_ptx_execute
+%ptx_input_arg = type { i8*, i64, i64 }
+
 ; Unsigned data types -- we use these in the generated code for clarity and to make
 ; template substitution work nicely when calling type-specific functions
 %u8 = type i8;
@@ -30,9 +34,13 @@ declare <4 x double> @llvm.log.v4f64(<4 x double>)
 declare <2 x double> @llvm.exp.v2f64(<2 x double>)
 declare <4 x double> @llvm.exp.v4f64(<4 x double>)
 
+declare <4 x double> @llvm.fabs.v4f64(<4 x double>)
+
 declare float @llvm.sqrt.f32(float)
 declare double @llvm.sqrt.f64(double)
 
+declare double @llvm.pow.f64(double, double)
+declare float @llvm.pow.f32(float, float)
 
 declare float     @llvm.sin.f32(float  %Val)
 declare double    @llvm.sin.f64(double %Val)
@@ -81,13 +89,14 @@ declare float @tanhf(float)
 declare double @tanh(double)
 
 ; Power
-declare float @llvm.pow.f32(float, float)
-declare double @llvm.pow.f64(double, double)
+; declare float @llvm.pow.f32(float, float)
+; declare double @llvm.pow.f64(double, double)
 
 declare i32 @puts(i8* nocapture) nounwind
 
 ; Weld runtime functions
 
+declare void    @weld_ptx_execute(i8*, i32, i8*)
 declare i64     @weld_run_begin(void (%work_t*)*, i8*, i64, i32)
 declare i8*     @weld_run_get_result(i64)
 

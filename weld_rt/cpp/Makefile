@@ -25,7 +25,10 @@ inline.bc: inline.cpp
 vb.o: vb.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
 
-dict.o: dict.cpp
+dict.o: dict-new.cpp
+	${CLANG} ${CFLAGS} -c $< -o $@
+
+gb.o: gb-new.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
 
 merger.o: merger.cpp
@@ -38,7 +41,7 @@ cuda-test.o: cuda-test.cpp
 	#${CLANG} -O2 $< -g -c -I/usr/local/cuda-8.0/include -lcuda -o $@
 	${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
 
-weldrt.o: vb.o dict.o merger.o runtime.o inline.o cuda-test.o
+weldrt.o: vb.o dict.o merger.o runtime.o inline.o cuda-test.o gb.o
 	ld -r $^ -o $@
 
 
