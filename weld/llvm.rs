@@ -1966,7 +1966,9 @@ impl LlvmGenerator {
         
         let random_name = CString::new("simple-gpu.ll").unwrap();
         let random_name_ptr: *const libc::c_char = random_name.as_ptr();
+        println!("going to generate ptx");
         let ptx_code : *const libc::c_char = unsafe{ generatePTX(c_string_code_ptr, code_len, random_name_ptr) };
+        println!("generated ptx code");
         let c_str: &CStr = unsafe { CStr::from_ptr(ptx_code) };
         let str_slice: &str = c_str.to_str().unwrap();
         let str_buf: String = str_slice.to_owned();

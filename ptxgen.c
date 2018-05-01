@@ -6,6 +6,22 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+/* Two levels of indirection to stringify LIBDEVICE_MAJOR_VERSION and
+ * LIBDEVICE_MINOR_VERSION correctly. */
+#define getLibDeviceNameForArch(ARCH)                 \
+  _getLibDeviceNameForArch(ARCH,                      \
+                           LIBDEVICE_MAJOR_VERSION,   \
+                           LIBDEVICE_MINOR_VERSION)
+#define _getLibDeviceNameForArch(ARCH, MAJOR, MINOR)  \
+  __getLibDeviceNameForArch(ARCH, MAJOR, MINOR)
+#define __getLibDeviceNameForArch(ARCH, MAJOR, MINOR) \
+  ("/libdevice/libdevice.compute_" #ARCH ".10.bc")
+
+#define getLibnvvmHome _getLibnvvmHome(/usr/local/cuda-8.0/nvvm/)
+#define _getLibnvvmHome(NVVM_HOME) __getLibnvvmHome(NVVM_HOME)
+#define __getLibnvvmHome(NVVM_HOME) (#NVVM_HOME)
+
+
 // This will output the proper CUDA error strings in the event that a CUDA host call returns an error
 #define checkCudaErrors(err)  __checkCudaErrors (err, __FILE__, __LINE__)
 
@@ -18,6 +34,57 @@ void __checkCudaErrors( CUresult err, const char *file, const int line )
         exit(-1);
     }
 }
+
+typedef struct stat Stat;
+
+typedef enum {
+  PTXGEN_SUCCESS                    = 0x0000,
+  PTXGEN_FILE_IO_ERROR              = 0x0001,
+  PTXGEN_BAD_ALLOC_ERROR            = 0x0002,
+  PTXGEN_LIBNVVM_COMPILATION_ERROR  = 0x0004,
+  PTXGEN_LIBNVVM_ERROR              = 0x0008,
+  PTXGEN_INVALID_USAGE              = 0x0010,
+  PTXGEN_LIBNVVM_HOME_UNDEFINED     = 0x0020,
+  PTXGEN_LIBNVVM_VERIFICATION_ERROR = 0x0040
+} PTXGENStatus;
+
+
+static PTXGENStatus getLibDeviceName(int computeArch, char **buffer)
+{
+  const char *libnvvmPath = getLibnvvmHome;
+  const char *libdevice   = NULL;
+
+  if (libnvvmPath == NULL) {
+    fprintf(stderr, "The environment variable LIBNVVM_HOME undefined\n");
+    return PTXGEN_LIBNVVM_HOME_UNDEFINED;
+  }
+
+  /* Use libdevice for compute_20, if the target is not compute_20, compute_30,
+   * or compute_35. */
+  switch (computeArch) {
+  default:
+    libdevice = getLibDeviceNameForArch(20);
+    break;
+  case 30:
+    libdevice = getLibDeviceNameForArch(30);
+    break;
+  case 35:
+    libdevice = getLibDeviceNameForArch(35);
+    break;
+  }
+
+  *buffer = (char *) malloc(strlen(libnvvmPath) + strlen(libdevice) + 1);
+  if (*buffer == NULL) {
+    fprintf(stderr, "Failed to allocate memory\n");
+    return PTXGEN_BAD_ALLOC_ERROR;
+  }
+
+  /* Concatenate libnvvmPath and name. */
+  *buffer = strcat(strcpy(*buffer, libnvvmPath), libdevice);
+
+  return PTXGEN_SUCCESS;
+}
+
 
 CUdevice cudaDeviceInit()
 {
@@ -90,9 +157,52 @@ char *loadProgramSource(const char *filename, size_t *size)
     return source;
 }
 
+static PTXGENStatus addFileToProgram(const char *filename, nvvmProgram prog)
+{
+  char        *buffer;
+  size_t       size;
+  Stat         fileStat;
+
+  /* Open the input file. */
+  FILE *f = fopen(filename, "rb");
+  if (f == NULL) {
+    fprintf(stderr, "Failed to open %s\n", filename);
+    return PTXGEN_FILE_IO_ERROR;
+  }
+
+  /* Allocate buffer for the input. */
+  fstat(fileno(f), &fileStat);
+  buffer = (char *) malloc(fileStat.st_size);
+  if (buffer == NULL) {
+    fprintf(stderr, "Failed to allocate memory\n");
+    return PTXGEN_BAD_ALLOC_ERROR;
+  }
+  size = fread(buffer, 1, fileStat.st_size, f);
+  if (ferror(f)) {
+    fprintf(stderr, "Failed to read %s\n", filename);
+    fclose(f);
+    free(buffer);
+    return PTXGEN_FILE_IO_ERROR;
+  }
+  fclose(f);
+
+  if (nvvmAddModuleToProgram(prog, buffer, size, filename) != NVVM_SUCCESS) {
+    fprintf(stderr,
+            "Failed to add the module %s to the compilation unit\n",
+            filename);
+    free(buffer);
+    return PTXGEN_LIBNVVM_ERROR;
+  }
+
+  free(buffer);
+  return PTXGEN_SUCCESS;
+}
+
 extern "C" char *generatePTX(const char *ll, size_t size, const char *filename);
 extern "C" char *generatePTX(const char *ll, size_t size, const char *filename)
 {
+    PTXGENStatus status;
+    char *libDeviceName;
     nvvmResult result;
     nvvmProgram program;
     size_t PTXSize;
@@ -105,6 +215,29 @@ extern "C" char *generatePTX(const char *ll, size_t size, const char *filename)
         exit(-1); 
     }
 
+      /* Add libdevice. */
+    /* int computeArch = 20; */
+    /* status = getLibDeviceName(computeArch, &libDeviceName); */
+    /* if (status != PTXGEN_SUCCESS) { */
+    /*   fprintf(stderr, "getLibDeviceName : Failed\n"); */
+    /*   //nvvmDestroyProgram(&program); */
+    /*   exit(-1); */
+    /* } */
+    /* status = addFileToProgram(libDeviceName, program); */
+    /* free(libDeviceName); */
+    /* if (status != PTXGEN_SUCCESS) { */
+    /*   fprintf(stderr, "addFileToProgram (libDeviceName): Failed\n"); */
+    /*   //nvvmDestroyProgram(&program); */
+    /*   exit(-1); */
+    /* 	//return status; */
+    /* } */
+
+    /* result = nvvmAddModuleToProgram(program, libdeviceMod, libdeviceModSize); */
+    /* if (result != NVVM_SUCCESS) { */
+    /*     fprintf(stderr, "nvvmAddModuleToProgram (libdeviceMod): Failed\n"); */
+    /*     exit(-1); */
+    /* } */
+    
     // add nvvm module to program
     // what is a module? apparently you can add more than one module
     // ll is the llvm string
@@ -113,7 +246,10 @@ extern "C" char *generatePTX(const char *ll, size_t size, const char *filename)
         fprintf(stderr, "nvvmAddModuleToProgram: Failed\n");
         exit(-1);
     }
- 
+
+    // Declare compile options
+    // const char *options[] = { "-nvvm-reflect -O3" };
+    fprintf(stderr, "attempting to nvvm compile");
     result = nvvmCompileProgram(program,  0, NULL);
     if (result != NVVM_SUCCESS) {
         char *Msg = NULL;
