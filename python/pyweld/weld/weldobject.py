@@ -153,7 +153,7 @@ class WeldObject(object):
         text = header + " " + self.get_let_statements() + "\n" + self.weld_code
         return text
 
-    def evaluate(self, restype, verbose=True, decode=True, passes=None,
+    def evaluate(self, restype, verbose=False, decode=True, passes=None,
                  num_threads=1, apply_experimental_transforms=False):
         function = self.to_weld_func()
 

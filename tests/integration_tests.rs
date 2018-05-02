@@ -2003,13 +2003,16 @@ fn log_error() {
 
 
 fn simple_exp() {
+    //let code = "|x:f64| sqrt(x)";
     let code = "|x:f64| exp(x)";
     let conf = default_conf();
+    //let input = 4.0f64;
     let input = 1.0f64;
     let ret_value = compile_and_run(code, conf, &input);
     let data = unsafe { weld_value_data(ret_value) as *const f64 };
     let result = unsafe { (*data).clone() };
     let output = 2.718281828459045;
+    //let output = 2.0f64;
     assert!(approx_equal(output, result, 5));
     unsafe { free_value_and_module(ret_value) };
 }
@@ -2109,17 +2112,20 @@ fn simple_trig() {
 }
 
 fn map_exp() {
-    let code = "|x:vec[f32]| map(x, |a| exp(a))";
+    //let code = "|x:vec[f32]| map(x, |a| sqrt(a))";
+    let code = "|x:vec[f64]| map(x, |a| sqrt(a))";
     let conf = default_conf();
 
-    let input_vec = [0.0f32, 1.0f32, 2.0f32, 3.0f32];
+    //let input_vec = [0.0f32, 1.0f32, 2.0f32, 3.0f32];
+    let input_vec = [0.0f64, 1.0f64, 2.0f64, 3.0f64];
+
     let ref input_data = WeldVec {
-        data: &input_vec as *const f32,
+        data: &input_vec as *const f64,
         len: input_vec.len() as i64,
     };
 
     let ret_value = compile_and_run(code, conf, input_data);
-    let data = unsafe { weld_value_data(ret_value) as *const WeldVec<f32> };
+    let data = unsafe { weld_value_data(ret_value) as *const WeldVec<f64> };
     let result = unsafe { (*data).clone() };
 
     let output = [1.0, 2.7182817, 7.389056, 20.085537];

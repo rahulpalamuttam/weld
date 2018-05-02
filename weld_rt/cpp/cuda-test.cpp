@@ -8,6 +8,8 @@
 //#include <stdlib.h>
 //#include <stdio.h>
 #include <math.h>
+#include <sys/time.h>
+#include <time.h>
 
 #define THREAD_BLOCK_SIZE 512
 
@@ -122,6 +124,7 @@ extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
     unsigned gridSizeY  = 1;
     unsigned gridSizeZ  = 1;
 
+    printf("going to set kernel params\n");
     void *kernel_params[num_args + 1];
     for (int i = 0; i < num_args; i++) {
         kernel_params[i] = (void *) &dev_inputs[i];
@@ -130,10 +133,15 @@ extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
 
     printf("Launching kernel\n");
     //// Kernel launch
+    struct timeval start, end, diff;
+    gettimeofday(&start, NULL);
     checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
                              blockSizeX, blockSizeY, blockSizeZ,
                              0, NULL, kernel_params, NULL));
     // TODO: does it need any synchronize call here?
+    gettimeofday(&end, NULL);
+    timersub(&end, &start, &diff);
+    printf("GPU-Kernel-Timing: %ld.%06ld\n", diff.tv_sec, diff.tv_usec);
 
     // Retrieve device data
     checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));

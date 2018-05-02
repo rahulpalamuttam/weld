@@ -231,6 +231,12 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     trace!("LLVM program:\n{}\n", &llvm_code);
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
+    // FIXME: temporary.
+    let f2 = File::create("/lfs/1/pari/weld-kernel.ll").expect("Unable to create file");
+    let mut f2 = BufWriter::new(f2);
+    let f2_code = format!("{}", llvm_code);
+    f2.write_all(f2_code.as_bytes()).expect("Unable to write data");
+
     let ref timestamp = format!("{}", time::now().to_timespec().sec);
 
     // Dump files if needed. Do this here in case the actual LLVM code gen fails.
@@ -1394,6 +1400,7 @@ impl LlvmGenerator {
         nditer
     }
 
+    /// TODO: add details.
     fn gen_kernel_setup_nvvm(&mut self,
                      par_for: &ParallelForData,
                      func: &SirFunction,
@@ -1406,8 +1413,6 @@ impl LlvmGenerator {
                                       ctx.var_ids.next());
         ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone
                              nounwind", tid_x));
-
-        // FIXME: how to determine index...
         ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone
                              nounwind", block_id_x));
         ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone
@@ -1840,9 +1845,11 @@ impl LlvmGenerator {
     }
 
     /// Wrapper function for calling into nvptx stuff.
-    fn gen_nvptx_func(&mut self, par_for: &ParallelForData, func: &SirFunction,
+    fn gen_nvptx_wrapper_func(&mut self, par_for: &ParallelForData, func: &SirFunction,
                              ctx: &mut FunctionContext) -> WeldResult<()> {
         let arg_types = self.get_arg_str(&func.params, ".in")?;
+        println!("arg types in gen nvptx func: {} ", arg_types);
+
         self.gen_function_header(&arg_types, func, ctx)?;
         let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
 
@@ -1994,16 +2001,15 @@ impl LlvmGenerator {
 
         // TODO: Move this to LlvmGenerator subclass?
         let gpu_ctx = &mut FunctionContext::new(par_for.innermost);
-        /* Part 1: Generate the kernel */
+        /* Part 1: Generate the kernel (nvvm code) to be run on the gpu. */
 
-        /* 1b) generate the function header (and allocations) for the kernel */
         let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
         self.gen_function_header_nvvm(&nvvm_arg_types, func, gpu_ctx)?;
 
-        /* 1c) gen the indexing etc. Follow same conventions as gen_loop_iteration_setup, but
+        /* gen the indexing etc. Follow same conventions as gen_loop_iteration_setup, but
          * instead of cur.idx, this index will just be based on gpu kernel conventions */
         self.gen_kernel_setup_nvvm(par_for, func, gpu_ctx)?;
-        /* 1c) main kernel body -- should essentially be the same as in the llvm case */
+        /* main kernel body -- should essentially be the same as in the llvm case */
         // FIXME pari: can there be more than one body?
         gpu_ctx.code.add(format!("br label %b.b{}", func.blocks[0].id));
         self.gen_function_body_nvvm(sir, func, gpu_ctx)?;
@@ -2034,11 +2040,7 @@ impl LlvmGenerator {
         }
         arg_types.push_str(&output_str);
         println!("arg types = {} ", arg_types);
-        //let annotation_template = format!("{}", NVVM_END_TEMPLATE);
-        //let nvvm_kernel_annotations = format!(annotation_template, arg_types);
         let nvvm_kernel_annotations = NVVM_END_TEMPLATE.replace("ARGS", &arg_types);
-
-        println!("nvvm kernel annot: {} ", nvvm_kernel_annotations);
         gpu_ctx.code.add(nvvm_kernel_annotations);
 
         /* prelude */
@@ -2058,7 +2060,15 @@ impl LlvmGenerator {
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
          * it? */
-
+        use std::io;
+        use std::io::prelude::*;
+        let stdin = io::stdin();
+        for (i, line) in stdin.lock().lines().enumerate() {
+            println!("{}", line.unwrap());
+            if (i == 0) {
+                break;
+            }
+        }
 
         /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
          * allocating memory for output (single value OR full array depending on builder type),
@@ -2066,9 +2076,10 @@ impl LlvmGenerator {
         // TMP: load in the ptx text.
         let nvptx_wrapper_ctx = &mut FunctionContext::new(par_for.innermost);
         // should have same args as the original function.
-        self.gen_nvptx_func(par_for, func, nvptx_wrapper_ctx);
+        self.gen_nvptx_wrapper_func(par_for, func, nvptx_wrapper_ctx);
         self.body_code.add(&nvptx_wrapper_ctx.alloca_code.result());
         self.body_code.add(&nvptx_wrapper_ctx.code.result());
+
         Ok(())
     }
 
@@ -4701,17 +4712,22 @@ impl LlvmGenerator {
 
             ParallelFor(ref pf) => {
                 // TODO: Choose to generate gpu function v/s cpu
-                let params_sorted = get_combined_params(sir, pf);
-                let mut arg_types = String::new();
-                for (arg, ty) in params_sorted.iter() {
-                    let ll_ty = self.llvm_type(&ty)?;
-                    let arg_tmp = self.gen_load_var(llvm_symbol(arg).as_str(), &ll_ty, ctx)?;
-                    let arg_str = format!("{} {}, ", &ll_ty, arg_tmp);
-                    arg_types.push_str(&arg_str);
-                }
-                arg_types.push_str("%work_t* %cur.work");
                 if NVPTX_FLAG {
+                    let mut arg_types = String::new();
+                    for (arg, ty) in (&sir.funcs[pf.body].params).iter() {
+                        let ll_ty = self.llvm_type(&ty)?;
+                        let arg_tmp = self.gen_load_var(llvm_symbol(arg).as_str(), &ll_ty, ctx)?;
+                        let arg_str = format!("{} {}, ", &ll_ty, arg_tmp);
+                        arg_types.push_str(&arg_str);
+                    }
+                    arg_types.push_str("%work_t* %cur.work");
+
                     self.gen_par_for_functions_nvvm(pf, sir, &sir.funcs[pf.body])?;
+
+                    // FIXME: tmp.
+                    let test_arg_types = self.get_arg_str(&sir.funcs[pf.body].params, ".in")?;
+                    println!("test arg types after gen par for functions nvvm = {}", arg_types);
+
                     /* in the cpu version - the calls to these functions were made from a wrapper
                      * function (see gen_loop_wrapper_function). This involved boundary checks, and
                      * choosing between parallel / v/s serial runtime. Here, we directly make the
@@ -4724,6 +4740,15 @@ impl LlvmGenerator {
                     // with the single function we generated above.
                     ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", pf.body, arg_types));
                 } else {
+                    let params_sorted = get_combined_params(sir, pf);
+                    let mut arg_types = String::new();
+                    for (arg, ty) in params_sorted.iter() {
+                        let ll_ty = self.llvm_type(&ty)?;
+                        let arg_tmp = self.gen_load_var(llvm_symbol(arg).as_str(), &ll_ty, ctx)?;
+                        let arg_str = format!("{} {}, ", &ll_ty, arg_tmp);
+                        arg_types.push_str(&arg_str);
+                    }
+                    arg_types.push_str("%work_t* %cur.work");
                     // Generate the functions to execute the loop
                     self.gen_par_for_functions(pf, sir, &sir.funcs[pf.body])?;
                     ctx.code.add(format!("call void @f{}_wrapper({}, i32 %cur.tid)", pf.body, arg_types));
