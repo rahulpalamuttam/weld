@@ -2060,6 +2060,11 @@ impl LlvmGenerator {
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
          * it? */
+        let ptx_code = try!(easy_ll::compile_module_ptx(&code, 0, false,
+                                                        Some(WELD_INLINE_LIB)));
+        println!("llvm compiled ptx code: ");
+        println!("{}", ptx_code);
+
         use std::io;
         use std::io::prelude::*;
         let stdin = io::stdin();

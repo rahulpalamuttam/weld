@@ -1,7 +1,7 @@
 import weldnumpy as wn
 import numpy as np
 
-NUM_ELS = 100
+NUM_ELS = 100000
 
 def simple_test():
     w1 = wn.random.rand(10)
@@ -67,7 +67,7 @@ def boundary_error():
     print(np.allclose(n4, w4.view(np.ndarray)))
 
     print("going to do all close without casting to ndarray")
-    print(np.allclose(n4, w4))
+    # print(np.allclose(n4, w4))
 
 def blackscholes_bug_commutativity():
     # not reproducible yet.

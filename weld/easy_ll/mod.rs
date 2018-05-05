@@ -143,6 +143,96 @@ pub fn load_library(libname: &str) -> Result<(), LlvmError> {
 /// Compile a string of LLVM IR (in human readable format) into a `CompiledModule` that can then
 /// be executed. The LLVM IR should contain an entry point function called `run` that takes `i64`
 /// and returns `i64`, which will be called by `CompiledModule::run`.
+pub fn compile_module_ptx(
+        code: &str,
+        optimization_level: u32,
+        dump_code: bool,
+        bc_file: Option<&[u8]>)
+        -> Result<String, LlvmError> {
+    println!("compile ptx module!");
+    let mut timing = LlvmTimingInfo::new();
+
+    unsafe {
+
+        llvm::target::LLVM_InitializeAllTargets();
+        llvm::target::LLVM_InitializeAllAsmPrinters();
+        llvm::target::LLVM_InitializeAllAsmParsers();
+        llvm::target::LLVM_InitializeAllTargetMCs();
+
+        // we probably don't need this and stuff?
+        llvm::execution_engine::LLVMLinkInMCJIT();
+
+        // Create an LLVM context
+        let context = llvm::core::LLVMContextCreate();
+        if context.is_null() {
+            return Err(LlvmError::new("LLVMContextCreate returned null"));
+        }
+        debug!("Done creating LLVM context");
+
+        let start = PreciseTime::now();
+        // Create a CompiledModule to wrap the context and our result (will clean it on Drop).
+        let mut result = CompiledModule {
+            context: context,
+            engine: None,
+            run_function: None,
+        };
+
+        // Parse the IR to get an LLVMModuleRef
+        let module = parse_module_str(context, code)?;
+        let end = PreciseTime::now();
+        timing.times.push(("IR Parsing".to_string(), start.to(end)));
+        debug!("Done parsing module");
+
+        // Parse the bytecode file and link it.
+        let start = PreciseTime::now();
+        // TODO: not sure we need to link bc file here.
+        if let Some(s) = bc_file {
+            let bc_module = parse_module_bytes(context, s)?;
+            debug!("Done parsing bytecode file");
+            llvm::linker::LLVMLinkModules2(module, bc_module);
+            debug!("Done linking bytecode file");
+        }
+        //let end = PreciseTime::now();
+        //timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
+
+        // Validate the module
+        let start = PreciseTime::now();
+        verify_module(module)?;
+        //check_run_function(module)?;
+        let end = PreciseTime::now();
+        timing.times.push(("Module Verification".to_string(), start.to(end)));
+        debug!("Done validating module");
+
+        // Optimize the module.
+        let start = PreciseTime::now();
+        optimize_module(module, optimization_level)?;
+        let end = PreciseTime::now();
+        timing.times.push(("Module Optimization".to_string(), start.to(end)));
+        debug!("Done optimizing module");
+
+        // Create an execution engine for the module and find its run function
+        let start = PreciseTime::now();
+        let engine = create_exec_engine(module, optimization_level)?;
+        let end = PreciseTime::now();
+        timing.times.push(("Create Exec Engine".to_string(), start.to(end)));
+        debug!("Done creating execution engine");
+
+        // Find the run function
+        let start = PreciseTime::now();
+        result.engine = Some(engine);
+        let end = PreciseTime::now();
+        timing.times.push(("Find Run Func Address".to_string(), start.to(end)));
+        debug!("Done generating/finding run function");
+        let ir = output_llvm_ir(module)?;
+        let assembly = output_target_machine_assembly(engine, module)?;
+
+        Ok(ir)
+    }
+}
+
+/// Compile a string of LLVM IR (in human readable format) into a `CompiledModule` that can then
+/// be executed. The LLVM IR should contain an entry point function called `run` that takes `i64`
+/// and returns `i64`, which will be called by `CompiledModule::run`.
 pub fn compile_module(
         code: &str,
         optimization_level: u32,
