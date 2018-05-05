@@ -154,10 +154,20 @@ pub fn compile_module_ptx(
 
     unsafe {
 
-        llvm::target::LLVM_InitializeAllTargets();
-        llvm::target::LLVM_InitializeAllAsmPrinters();
-        llvm::target::LLVM_InitializeAllAsmParsers();
-        llvm::target::LLVM_InitializeAllTargetMCs();
+        //llvm::target::LLVM_InitializeAllTargets();
+        //llvm::target::LLVM_InitializeAllAsmPrinters();
+        //llvm::target::LLVM_InitializeAllAsmParsers();
+        //llvm::target::LLVM_InitializeAllTargetMCs();
+
+        llvm::target::LLVMInitializeNVPTXTargetInfo();
+        llvm::target::LLVMInitializeNVPTXTarget();
+        llvm::target::LLVMInitializeNVPTXAsmPrinter();
+        llvm::target::LLVMInitializeNVPTXTargetMC();
+
+        //llvm::target::LLVM_InitializeNVPTXAsmPrinter();
+        //llvm::target::LLVM_InitializeAllAsmPrinters();
+        //llvm::target::LLVM_InitializeAllAsmParsers();
+        //llvm::target::LLVM_InitializeAllTargetMCs();
 
         // we probably don't need this and stuff?
         llvm::execution_engine::LLVMLinkInMCJIT();
@@ -185,30 +195,31 @@ pub fn compile_module_ptx(
 
         // Parse the bytecode file and link it.
         let start = PreciseTime::now();
+
         // TODO: not sure we need to link bc file here.
-        if let Some(s) = bc_file {
-            let bc_module = parse_module_bytes(context, s)?;
-            debug!("Done parsing bytecode file");
-            llvm::linker::LLVMLinkModules2(module, bc_module);
-            debug!("Done linking bytecode file");
-        }
+        //if let Some(s) = bc_file {
+            //let bc_module = parse_module_bytes(context, s)?;
+            //debug!("Done parsing bytecode file");
+            //llvm::linker::LLVMLinkModules2(module, bc_module);
+            //debug!("Done linking bytecode file");
+        //}
         //let end = PreciseTime::now();
         //timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
         // Validate the module
-        let start = PreciseTime::now();
-        verify_module(module)?;
+        //let start = PreciseTime::now();
+        //verify_module(module)?;
         //check_run_function(module)?;
-        let end = PreciseTime::now();
-        timing.times.push(("Module Verification".to_string(), start.to(end)));
-        debug!("Done validating module");
+        //let end = PreciseTime::now();
+        //timing.times.push(("Module Verification".to_string(), start.to(end)));
+        //debug!("Done validating module");
 
         // Optimize the module.
-        let start = PreciseTime::now();
-        optimize_module(module, optimization_level)?;
-        let end = PreciseTime::now();
-        timing.times.push(("Module Optimization".to_string(), start.to(end)));
-        debug!("Done optimizing module");
+        //let start = PreciseTime::now();
+        //optimize_module(module, optimization_level)?;
+        //let end = PreciseTime::now();
+        //timing.times.push(("Module Optimization".to_string(), start.to(end)));
+        //debug!("Done optimizing module");
 
         // Create an execution engine for the module and find its run function
         let start = PreciseTime::now();
@@ -218,15 +229,19 @@ pub fn compile_module_ptx(
         debug!("Done creating execution engine");
 
         // Find the run function
-        let start = PreciseTime::now();
-        result.engine = Some(engine);
-        let end = PreciseTime::now();
-        timing.times.push(("Find Run Func Address".to_string(), start.to(end)));
-        debug!("Done generating/finding run function");
+        //let start = PreciseTime::now();
+        //result.engine = Some(engine);
+        //let end = PreciseTime::now();
+        //timing.times.push(("Find Run Func Address".to_string(), start.to(end)));
+        //debug!("Done generating/finding run function");
+
         let ir = output_llvm_ir(module)?;
         let assembly = output_target_machine_assembly(engine, module)?;
 
-        Ok(ir)
+        println!("assembly: ");
+        println!("{}", assembly);
+
+        Ok(assembly)
     }
 }
 

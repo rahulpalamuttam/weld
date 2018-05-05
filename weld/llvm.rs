@@ -2047,12 +2047,16 @@ impl LlvmGenerator {
         let mut nvptx_prelude_code = CodeBuilder::new();
         nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
         nvptx_prelude_code.add("\n");
-        nvptx_prelude_code.add(self.prelude_code.result());
+        nvptx_prelude_code.add("%s0 = type { double, double }");
+
+        // FIXME: this should not be needed. UPDATE nvptx prelude code separately.
+        //nvptx_prelude_code.add(self.prelude_code.result());
 
         /* FIXME: temporary, write to file so we can compile it manually */
         let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
                                        nvptx_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                        gpu_ctx.code.result());
+
         let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(code.as_bytes()).expect("Unable to write data");
@@ -2060,11 +2064,6 @@ impl LlvmGenerator {
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
          * it? */
-        let ptx_code = try!(easy_ll::compile_module_ptx(&code, 0, false,
-                                                        Some(WELD_INLINE_LIB)));
-        println!("llvm compiled ptx code: ");
-        println!("{}", ptx_code);
-
         use std::io;
         use std::io::prelude::*;
         let stdin = io::stdin();
@@ -2074,6 +2073,16 @@ impl LlvmGenerator {
                 break;
             }
         }
+
+        let ptx_code = try!(easy_ll::compile_module_ptx(&code, 0, false,
+                                                        Some(WELD_INLINE_LIB)));
+        //println!("llvm compiled ptx code: ");
+        //println!("{}", ptx_code);
+
+        let f = File::create("/lfs/1/pari/kernel.ptx").expect("Unable to create file");
+        let mut f = BufWriter::new(f);
+        f.write_all(ptx_code.as_bytes()).expect("Unable to write data");
+
 
         /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
          * allocating memory for output (single value OR full array depending on builder type),
