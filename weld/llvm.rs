@@ -36,7 +36,7 @@ use super::sir::optimizations;
 use super::transforms::uniquify;
 use super::type_inference;
 use super::util::IdGenerator;
-use super::util::WELD_INLINE_LIB;
+use super::util::{WELD_INLINE_LIB,NVPTX_LIBDEVICE_LIB};
 use super::annotations::*;
 
 use super::conf::ParsedConf;
@@ -370,6 +370,10 @@ pub struct LlvmGenerator {
     prelude_code: CodeBuilder,
     prelude_var_ids: IdGenerator,
 
+    /// nvptx prelude types.
+    /// TODO: do we need more general stuff here besides just types?
+    nvptx_prelude_types: CodeBuilder,
+
     /// A CodeBuilder for body functions in the module.
     body_code: CodeBuilder,
 
@@ -408,6 +412,7 @@ impl LlvmGenerator {
             string_names: fnv::FnvHashMap::default(),
             prelude_code: CodeBuilder::new(),
             prelude_var_ids: IdGenerator::new("%p.p"),
+            nvptx_prelude_types: CodeBuilder::new(),
             body_code: CodeBuilder::new(),
             visited: HashSet::new(),
             type_helpers: fnv::FnvHashMap::default(),
@@ -1290,30 +1295,6 @@ impl LlvmGenerator {
         Ok(final_idx)
     }
 
-    /// Helper function used at various places. Takes in a symbol of a weld array (as is passed to
-    /// Weld), and based on the func and ctx, loads the value at index 'idx' of array and returns a
-    /// string representing the value.
-    /// @llvm_info: generated from get_array_llvm_info(...) call at some point.
-    /// @vectorized: call to get the element is slightly different for simd ops.
-    /// @ret: String, representing the symbol for the value at idx.
-    fn get_array_at_idx(&mut self,
-                     ctx: &mut FunctionContext,
-                     llvm_info: VecLlvmInfo,
-                     vectorized: bool,
-                     idx: &String) -> WeldResult<String> {
-        let arr_elem_tmp_ptr = ctx.var_ids.next();
-        let at = if vectorized {
-            "vat"
-        } else {
-            "at"
-        };
-        ctx.code.add(format!("{} = call {}* {}.{}({} {}, i64 {})",
-                    arr_elem_tmp_ptr, &llvm_info.el_type, llvm_info.prefix,
-                    at, &llvm_info.arr_type, llvm_info.arr, idx));
-        // Loading the cur element from the data array.
-        Ok(self.gen_load_var(&arr_elem_tmp_ptr, &llvm_info.el_type, ctx)?)
-    }
-
     /// Generates a VecLlvmInfo struct for the given array.
     /// @el_type: The type of elements in the array. This isn't required (ie. can just pass in
     /// "", if you aren't planning to use this field in the future.
@@ -2047,10 +2028,11 @@ impl LlvmGenerator {
         let mut nvptx_prelude_code = CodeBuilder::new();
         nvptx_prelude_code.add(NVPTX_PRELUDE_CODE);
         nvptx_prelude_code.add("\n");
-        nvptx_prelude_code.add("%s0 = type { double, double }");
 
-        // FIXME: this should not be needed. UPDATE nvptx prelude code separately.
+        // FIXME: this should not be needed - messes up nvptx compilation because of all the random
+        // hash functions etc. that are defined in the usual prelude.
         //nvptx_prelude_code.add(self.prelude_code.result());
+        nvptx_prelude_code.add(self.nvptx_prelude_types.result());
 
         /* FIXME: temporary, write to file so we can compile it manually */
         let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
@@ -2064,25 +2046,11 @@ impl LlvmGenerator {
         /* Part 2: Compile the kernel to ptx code. */
         /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
          * it? */
-        use std::io;
-        use std::io::prelude::*;
-        let stdin = io::stdin();
-        for (i, line) in stdin.lock().lines().enumerate() {
-            println!("{}", line.unwrap());
-            if (i == 0) {
-                break;
-            }
-        }
-
-        let ptx_code = try!(easy_ll::compile_module_ptx(&code, 0, false,
-                                                        Some(WELD_INLINE_LIB)));
-        //println!("llvm compiled ptx code: ");
-        //println!("{}", ptx_code);
-
+        let ptx_code = try!(easy_ll::compile_module_nvptx(&code, 3, false,
+                                                        Some(NVPTX_LIBDEVICE_LIB)));
         let f = File::create("/lfs/1/pari/kernel.ptx").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(ptx_code.as_bytes()).expect("Unable to write data");
-
 
         /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
          * allocating memory for output (single value OR full array depending on builder type),
@@ -2799,6 +2767,9 @@ impl LlvmGenerator {
         }
         let field_types_str = field_types.join(", ");
         self.prelude_code.add(format!("{} = type {{ {} }}", name, field_types_str));
+
+        // FIXME pari: is this the only place we need this??
+        self.nvptx_prelude_types.add(format!("{} = type {{ {} }}", name, field_types_str));
 
         // Add it into our map so we remember its name
         self.struct_names.insert(fields.clone(), name);

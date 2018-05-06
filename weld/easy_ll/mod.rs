@@ -143,7 +143,7 @@ pub fn load_library(libname: &str) -> Result<(), LlvmError> {
 /// Compile a string of LLVM IR (in human readable format) into a `CompiledModule` that can then
 /// be executed. The LLVM IR should contain an entry point function called `run` that takes `i64`
 /// and returns `i64`, which will be called by `CompiledModule::run`.
-pub fn compile_module_ptx(
+pub fn compile_module_nvptx(
         code: &str,
         optimization_level: u32,
         dump_code: bool,
@@ -154,20 +154,10 @@ pub fn compile_module_ptx(
 
     unsafe {
 
-        //llvm::target::LLVM_InitializeAllTargets();
-        //llvm::target::LLVM_InitializeAllAsmPrinters();
-        //llvm::target::LLVM_InitializeAllAsmParsers();
-        //llvm::target::LLVM_InitializeAllTargetMCs();
-
         llvm::target::LLVMInitializeNVPTXTargetInfo();
         llvm::target::LLVMInitializeNVPTXTarget();
         llvm::target::LLVMInitializeNVPTXAsmPrinter();
         llvm::target::LLVMInitializeNVPTXTargetMC();
-
-        //llvm::target::LLVM_InitializeNVPTXAsmPrinter();
-        //llvm::target::LLVM_InitializeAllAsmPrinters();
-        //llvm::target::LLVM_InitializeAllAsmParsers();
-        //llvm::target::LLVM_InitializeAllTargetMCs();
 
         // we probably don't need this and stuff?
         llvm::execution_engine::LLVMLinkInMCJIT();
@@ -181,6 +171,7 @@ pub fn compile_module_ptx(
 
         let start = PreciseTime::now();
         // Create a CompiledModule to wrap the context and our result (will clean it on Drop).
+        // TODO: use this so we can save the compiled module and reuse it later.
         let mut result = CompiledModule {
             context: context,
             engine: None,
@@ -194,32 +185,32 @@ pub fn compile_module_ptx(
         debug!("Done parsing module");
 
         // Parse the bytecode file and link it.
-        let start = PreciseTime::now();
-
-        // TODO: not sure we need to link bc file here.
+        //let start = PreciseTime::now();
         //if let Some(s) = bc_file {
             //let bc_module = parse_module_bytes(context, s)?;
             //debug!("Done parsing bytecode file");
             //llvm::linker::LLVMLinkModules2(module, bc_module);
             //debug!("Done linking bytecode file");
+            //println!("Done linking bytecode file with libdevice!!!!!");
         //}
         //let end = PreciseTime::now();
         //timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
         // Validate the module
-        //let start = PreciseTime::now();
-        //verify_module(module)?;
+        let start = PreciseTime::now();
+        verify_module(module)?;
+        // TODO: check_kernel_function here.
         //check_run_function(module)?;
-        //let end = PreciseTime::now();
-        //timing.times.push(("Module Verification".to_string(), start.to(end)));
-        //debug!("Done validating module");
+        let end = PreciseTime::now();
+        timing.times.push(("Module Verification".to_string(), start.to(end)));
+        debug!("Done validating module");
 
         // Optimize the module.
-        //let start = PreciseTime::now();
-        //optimize_module(module, optimization_level)?;
-        //let end = PreciseTime::now();
-        //timing.times.push(("Module Optimization".to_string(), start.to(end)));
-        //debug!("Done optimizing module");
+        let start = PreciseTime::now();
+        optimize_module_nvptx(module, optimization_level)?;
+        let end = PreciseTime::now();
+        timing.times.push(("Module Optimization".to_string(), start.to(end)));
+        debug!("Done optimizing module");
 
         // Create an execution engine for the module and find its run function
         let start = PreciseTime::now();
@@ -237,9 +228,6 @@ pub fn compile_module_ptx(
 
         let ir = output_llvm_ir(module)?;
         let assembly = output_target_machine_assembly(engine, module)?;
-
-        println!("assembly: ");
-        println!("{}", assembly);
 
         Ok(assembly)
     }
@@ -469,6 +457,31 @@ unsafe fn check_run_function(module: LLVMModuleRef) -> Result<(), LlvmError> {
     if func_type != "i64 (i64)*" {
         return Err(LlvmError(format!("Run function has wrong type: {}", func_type)));
     }
+    Ok(())
+}
+
+/// Optimization pass for a given NVVM module using given LLVM optimization level, and adds the
+/// NVVM_REFLECT pass so libdevice linking works correctly.
+unsafe fn optimize_module_nvptx(module: LLVMModuleRef, optimization_level: u32)
+        -> Result<(), LlvmError> {
+    let manager = llvm::core::LLVMCreatePassManager();
+    if manager.is_null() {
+        return Err(LlvmError::new("LLVMCreatePassManager returned null"));
+    }
+    let builder = pmb::LLVMPassManagerBuilderCreate();
+    if builder.is_null() {
+        return Err(LlvmError::new("LLVMPassManagerBuilderCreate returned null"));
+    }
+
+    pmb::LLVMPassManagerBuilderSetOptLevel(builder, optimization_level);
+    pmb::LLVMPassManagerBuilderPopulateLTOPassManager(builder, manager, 1, 1);
+    pmb::LLVMPassManagerBuilderDispose(builder);
+
+    // FIXME: how to create reflect pass??
+    //pmb::createNVVMReflectPass();
+
+    llvm::core::LLVMRunPassManager(manager, module);
+    llvm::core::LLVMDisposePassManager(manager);
     Ok(())
 }
 

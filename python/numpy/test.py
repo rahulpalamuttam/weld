@@ -63,6 +63,8 @@ def boundary_error():
 
     n4 = n2 - n1
     w4 = w2 - w1
+
+    print("weld code: ", w4.weldobj.weld_code)
     w4 = w4.evaluate()
     print(np.allclose(n4, w4.view(np.ndarray)))
 
