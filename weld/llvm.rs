@@ -136,6 +136,11 @@ pub fn apply_opt_passes(expr: &mut TypedExpr,
         if pass.pass_name() == "vectorize" && NVPTX_FLAG {
             continue;
         }
+
+        //else if pass.pass_name() == "loop-fusion" {
+            //println!("skipping loop fusion");
+            //continue;
+        //};
         let start = PreciseTime::now();
         pass.transform(expr, use_experimental)?;
         let end = PreciseTime::now();
