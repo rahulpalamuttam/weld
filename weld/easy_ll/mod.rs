@@ -16,7 +16,7 @@ use std::sync::{Once, ONCE_INIT};
 use std::ptr;
 
 use self::llvm::support::LLVMLoadLibraryPermanently;
-use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef};
+use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef, LLVMPassManagerRef};
 use self::llvm::execution_engine::{LLVMExecutionEngineRef, LLVMMCJITCompilerOptions, LLVMGetExecutionEngineTargetMachine};
 
 use self::llvm::target_machine::{LLVMCodeGenFileType, LLVMTargetMachineEmitToMemoryBuffer};
@@ -29,6 +29,10 @@ use time::{Duration, PreciseTime};
 #[cfg(test)]
 mod tests;
 
+#[link(name = "ptxgen")]
+extern {
+    fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> LLVMPassManagerRef;
+}
 // Helper objects to make sure we only initialize once
 static ONCE: Once = ONCE_INIT;
 static mut INITIALIZE_FAILED: bool = false;
