@@ -2113,7 +2113,7 @@ fn simple_trig() {
 
 fn map_exp() {
     //let code = "|x:vec[f32]| map(x, |a| sqrt(a))";
-    let code = "|x:vec[f64]| map(x, |a| a + a)";
+    let code = "|x:vec[f64]| map(x, |a| sqrt(a))";
     let conf = default_conf();
 
     //let input_vec = [0.0f32, 1.0f32, 2.0f32, 3.0f32];
@@ -3245,7 +3245,7 @@ fn main() {
              // ("simple_pow", simple_pow),
              // ("simple_trig", simple_trig),
              // ("empty_appender_loop", empty_appender_loop),
-             // ("map_exp", map_exp),
+              ("map_exp", map_exp),
              // ("nested_if_statement_loop", nested_if_statement_loop),
              // ("nested_if_statement_with_builders_loop", nested_if_statement_with_builders_loop),
              // ("simple_for_appender_loop", simple_for_appender_loop),
