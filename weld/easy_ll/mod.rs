@@ -31,7 +31,8 @@ mod tests;
 
 #[link(name = "ptxgen")]
 extern {
-    fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> LLVMPassManagerRef;
+    //fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> LLVMPassManagerRef;
+    fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> ();
 }
 // Helper objects to make sure we only initialize once
 static ONCE: Once = ONCE_INIT;
@@ -482,6 +483,8 @@ unsafe fn optimize_module_nvptx(module: LLVMModuleRef, optimization_level: u32)
     pmb::LLVMPassManagerBuilderDispose(builder);
 
     // FIXME: how to create reflect pass??
+    //NVVMReflectPass(manager);
+    NVVMReflectPass(manager);
     //pmb::createNVVMReflectPass();
 
     llvm::core::LLVMRunPassManager(manager, module);
