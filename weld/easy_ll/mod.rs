@@ -31,7 +31,6 @@ mod tests;
 
 #[link(name = "ptxgen")]
 extern {
-    //fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> LLVMPassManagerRef;
     fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> ();
 }
 // Helper objects to make sure we only initialize once
