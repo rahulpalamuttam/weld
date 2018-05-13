@@ -70,7 +70,6 @@ def boundary_error():
     print(np.allclose(n4, w4))
 
 def blackscholes_bug_commutativity():
-    # not reproducible yet.
     n1 = np.random.rand(NUM_ELS)
     n2 = np.random.rand(NUM_ELS)
     w1 = wn.weldarray(n1)
@@ -89,8 +88,28 @@ def blackscholes_bug_commutativity():
     w4 = w4.evaluate()
     print(np.allclose(n4, w4.view(np.ndarray)))
 
+def dot_product():
+    n1 = np.random.rand(NUM_ELS)
+    n2 = np.random.rand(NUM_ELS)
+    w1 = wn.weldarray(n1)
+    w2 = wn.weldarray(n2)
+
+    # n3 = n2
+    # w3 = w2
+    n3 = n1*n2
+    w3 = w1*w2
+
+    n4 = np.sum(n3)
+    w4 = np.sum(w3)
+    print("sum completed in python")
+    w4 = w4.evaluate()
+
+    print(np.allclose(n4, w4.view(np.ndarray)))
+
+
 # blackscholes_bug1()
 # simple_test()
 # simple_cmp()
 # blackscholes_bug_commutativity()
-boundary_error()
+# boundary_error()
+dot_product()

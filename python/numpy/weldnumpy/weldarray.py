@@ -19,7 +19,7 @@ class weldarray(np.ndarray):
     the creation of a new array, which adds to the overhead compared to NumPy
     for initializing arrays)
     '''
-    def __new__(cls, input_array, verbose=False, new_weldobj = True, *args, **kwargs):
+    def __new__(cls, input_array, verbose=True, new_weldobj = True, *args, **kwargs):
         '''
         @input_array: original ndarray from which the new array is derived.
         '''
@@ -512,12 +512,14 @@ class weldarray(np.ndarray):
 
         if output is not None:
             if self._verbose: print('ufunc was supported ', ufunc)
-            output._num_registered_ops += 1
+            if isinstance(output, weldarray):
+                # could also have been a single number, e.g., after reductions.
+                output._num_registered_ops += 1
             return output
 
-        return self._handle_NumPy(ufunc, method, input_args, outputs, kwargs)
+        return self._handle_numpy(ufunc, method, input_args, outputs, kwargs)
 
-    def _handle_NumPy(self, ufunc, method, input_args, outputs, kwargs):
+    def _handle_numpy(self, ufunc, method, input_args, outputs, kwargs):
         '''
         Offload executing ufunc to NumPy, typically because there was some
         reason we could not handle it in weld. This could be because of one of
@@ -657,7 +659,6 @@ class weldarray(np.ndarray):
         '''
         if self._verbose:
             print('WARNING: not handling reduce because NumPy seems to be faster')
-        return None
 
         # input_args[0] must be self so it can be ignored.
         if len(input_args) > 1:
@@ -666,7 +667,13 @@ class weldarray(np.ndarray):
         if self._verbose: print('in handle reduce')
         if outputs: output = outputs[0]
         else: output = None
-        axis = kwargs['axis']
+        if 'axis' in kwargs:
+            print("axis in kwargs!!!!!")
+            print("axis in kwargs!!!!!")
+            print("axis in kwargs!!!!!")
+            axis = kwargs['axis']
+        else:
+            axis = None
 
         if ufunc.__name__ in wn.BINARY_OPS:
             return self._reduce_op(wn.BINARY_OPS[ufunc.__name__], axis=axis,

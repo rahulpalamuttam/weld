@@ -1,6 +1,9 @@
 import numpy as np
 import py.test
 import random
+from os import sys, path
+sys.path.append("/lfs/1/pari/weld/python/numpy")
+
 from weldnumpy import weldarray
 import scipy.special as ss
 
@@ -1129,4 +1132,4 @@ def test_util_functions():
         wmax = f(w)
         assert nmax == wmax
 
-test_unary_elemwise()
+test_reduce()
