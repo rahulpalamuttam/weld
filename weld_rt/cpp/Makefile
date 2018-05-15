@@ -38,10 +38,19 @@ runtime.o: runtime.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
 
 cuda-test.o: cuda-test.cpp
-	#${CLANG} -O2 $< -g -c -I/usr/local/cuda-8.0/include -lcuda -o $@
 	${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
 
-weldrt.o: vb.o dict.o merger.o runtime.o inline.o cuda-test.o gb.o
+thrust-helpers.o: thrust-helpers.cu
+	#CFLAGS = -O3 -std=c++11 -Wall -fno-use-cxa-atexit -fPIC
+	#nvcc -O3 -Xcompiler -fPIC -lcudadevrt thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+	#nvcc -O3 -shared -Xcompiler -fPIC -lcudadevrt -c thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+	#nvcc -O3 -shared -Xcompiler -fPIC -c thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+	nvcc -O3 -Xcompiler -fPIC -c thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+
+	# fails in cargo build
+	#nvcc -O3  -c thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+
+weldrt.o: vb.o dict.o merger.o runtime.o inline.o cuda-test.o gb.o thrust-helpers.o
 	ld -r $^ -o $@
 
 

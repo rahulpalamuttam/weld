@@ -2112,27 +2112,24 @@ fn simple_trig() {
 }
 
 fn map_exp() {
-    //let code = "|x:vec[f32]| map(x, |a| sqrt(a))";
-    let code = "|x:vec[f64]| map(x, |a| sqrt(a))";
+    let code = "|x:vec[f32]| map(x, |a| exp(a))";
     let conf = default_conf();
 
-    //let input_vec = [0.0f32, 1.0f32, 2.0f32, 3.0f32];
-    let input_vec = [0.0f64, 1.0f64, 2.0f64, 3.0f64];
+    let input_vec = [0.0f32, 1.0f32, 2.0f32, 3.0f32];
 
     let ref input_data = WeldVec {
-        data: &input_vec as *const f64,
+        data: &input_vec as *const f32,
         len: input_vec.len() as i64,
     };
 
     let ret_value = compile_and_run(code, conf, input_data);
-    let data = unsafe { weld_value_data(ret_value) as *const WeldVec<f64> };
+    let data = unsafe { weld_value_data(ret_value) as *const WeldVec<f32> };
     let result = unsafe { (*data).clone() };
 
     let output = [1.0, 2.7182817, 7.389056, 20.085537];
     for i in 0..(result.len as isize) {
         assert_eq!(unsafe { *result.data.offset(i) }, output[i as usize])
     }
-
     unsafe { free_value_and_module(ret_value) };
 }
 
@@ -3007,7 +3004,7 @@ fn get_idx(counter: [i64;3], strides: [i64;3]) -> i64 {
 /// increments counter as in numpy / and nditer implementation. For e.g.,
 /// let shapes :[i64; 3] = [2, 3, 4];
 /// Now counter would start from (0,0,0).
-/// Each index would go upto shapes, and then reset to 0. 
+/// Each index would go upto shapes, and then reset to 0.
 /// eg. (0,0,0), (0,0,1), (0,0,2), (0,0,3), (0,1,0) etc.
 fn update_counter(mut counter: [i64; 3], shapes: [i64; 3]) -> [i64; 3] {
     let v = vec![2, 1, 0];
@@ -3041,7 +3038,7 @@ fn nditer_basic_op_test() {
     for i in 0..100 {
         x[i] = i as f64;
     }
-    /* Number of elements to go forward in each index to get to next element. 
+    /* Number of elements to go forward in each index to get to next element.
      * These are arbitrarily chosen here for testing purposes so get_idx can simulate the behaviour
      * nditer should be doing (idx = dot(counter, strides).
      */

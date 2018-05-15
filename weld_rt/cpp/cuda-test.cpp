@@ -29,7 +29,8 @@ void checkCudaErrors(CUresult err) {
 }
 
 typedef struct ptx_arg {
-    double *data;
+    // FIXME: type of this should not affect anything.
+    uint8_t *data;
     //int32_t size;
     //int32_t num_elements;
     int64_t size;
@@ -40,16 +41,21 @@ typedef struct ptx_arg {
 void print_vals(ptx_arg input) {
     printf("printing out vals from given input!\n");
     for (int i = 0; i < input.num_elements; i++) {
-        printf("value at %d = %f;  ", i, input.data[i]);
+        printf("value at %d = %f;  ", i, (double ) input.data[i]);
     }
     printf("**************************************\n");
 }
 
 /*
  * TODO: update.
- * @num_elements: number of elements in the host arrays and output.
+ * @arg1:
+ * @num_args: number of elements in the host arrays and output.
+ * @arg2: pointer to the output array since this does not need to be a ptx_arg struct.
+ *
+ * @ret: pointer to the cuda allocated output array.
  */
-extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
+//extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
+extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 {
     /* FIXME: need to make sure arg2 is converted to appropriate form on both sides etc. */
     printf("weld ptx execute called!\n");
@@ -60,13 +66,12 @@ extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
     /* FIXME */
     int size = input_args[0].size;
     /* FIXME: output should be of type ptx_arg too */
-    int8_t *output = (int8_t *) arg2;
+    //int8_t *output = (int8_t *) arg2;
 
     // TODO: remove.
     //for (int i = 0; i < num_args; i++) print_vals(input_args[i]);
     printf("**************************************\n");
-    printf("value for arg 0 = %f;\n  ", input_args[0].data[0]);
-    printf("value for arg 1 = %f;\n ", input_args[1].data[0]);
+    printf("value of arg 0 = %ld;\n  ", (double) input_args[0].data[0]);
     printf("**************************************\n");
 
     CUdevice    device;
@@ -144,14 +149,31 @@ extern "C" void weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
     printf("GPU-Kernel-Timing: %ld.%06ld\n", diff.tv_sec, diff.tv_usec);
 
     // Retrieve device data
-    checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));
+    //checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));
+    printf("size in ptx_execute: %d\n", size);
 
+    // Clean-up
     for (int i = 0; i < num_args; i++) {
         checkCudaErrors(cuMemFree(dev_inputs[i]));
     }
-    checkCudaErrors(cuMemFree(dev_output));
 
-    // Clean-up
+    //checkCudaErrors(cuMemFree(dev_output));
+
     checkCudaErrors(cuModuleUnload(cudaModule));
-    checkCudaErrors(cuCtxDestroy(context));
+
+    // if we need to copy it back, seems like we need to leave this around?
+    //checkCudaErrors(cuCtxDestroy(context));
+    return (int8_t *) dev_output;
 }
+
+// FIXME: maybe we don't need a separate function for this.
+extern "C" void weld_copy_dtoh(int8_t *host, int8_t *dev, int size) {
+    printf("from weld copy dtoh\n");
+
+    printf("size = %d\n", size);
+    // Retrieve device data
+    checkCudaErrors(cuMemcpyDtoH(host, (CUdeviceptr) dev, size));
+    printf("DtoH done!\n");
+    checkCudaErrors(cuMemFree((CUdeviceptr) dev));
+    printf("cuMemFree done successfully!!\n");
+};

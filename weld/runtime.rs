@@ -1,4 +1,4 @@
-use libc::{c_void, int64_t, int32_t, size_t};
+use libc::{c_void, int8_t, int64_t, int32_t, size_t, c_double};
 
 #[allow(non_camel_case_types)]
 type work_t = c_void;
@@ -16,8 +16,16 @@ pub struct vec_output {
 extern "C" {
     #[no_mangle]
     pub fn weld_ptx_execute(arg1: *mut c_void,
-                            num_args: int32_t,
-                            arg2: *mut c_void);
+                            num_args: int32_t) -> *mut int8_t;
+    #[no_mangle]
+    pub fn weld_copy_dtoh(arg1: *mut int8_t,
+                            arg2: *mut int8_t,
+                            size: int64_t);
+
+    #[no_mangle]
+    pub fn thrust_reduce_wrapper(arg1: *mut c_void,
+                                 num_elements: int64_t) -> c_double;
+
     #[no_mangle]
     pub fn weld_runtime_init();
     #[no_mangle]

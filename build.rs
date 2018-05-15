@@ -3,8 +3,11 @@ use std::process::Command;
 
 fn main() {
     let project_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+
+    // set path so it can find cuda libraries.
+    println!("cargo:rustc-link-search=native=/usr/local/cuda-8.0/lib64");
     println!("cargo:rustc-link-lib=dylib=cuda");
-    // println!("cargo:rustc-link-lib=dylib=cudart");
+    println!("cargo:rustc-link-lib=dylib=cudart");
 
     let status = Command::new("make")
         .arg("clean")

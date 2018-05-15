@@ -96,7 +96,10 @@ declare i32 @puts(i8* nocapture) nounwind
 
 ; Weld runtime functions
 
-declare void    @weld_ptx_execute(i8*, i32, i8*)
+declare i8*    @weld_ptx_execute(i8*, i32)
+declare void   @weld_copy_dtoh(i8*, i8*, i64)
+declare double   @thrust_reduce_wrapper(i8*, i64)
+
 declare i64     @weld_run_begin(void (%work_t*)*, i8*, i64, i32)
 declare i8*     @weld_run_get_result(i64)
 

@@ -657,9 +657,6 @@ class weldarray(np.ndarray):
 
         @ret: array updated with weld code, or None.
         '''
-        if self._verbose:
-            print('WARNING: not handling reduce because NumPy seems to be faster')
-
         # input_args[0] must be self so it can be ignored.
         if len(input_args) > 1:
             return None
@@ -668,9 +665,6 @@ class weldarray(np.ndarray):
         if outputs: output = outputs[0]
         else: output = None
         if 'axis' in kwargs:
-            print("axis in kwargs!!!!!")
-            print("axis in kwargs!!!!!")
-            print("axis in kwargs!!!!!")
             axis = kwargs['axis']
         else:
             axis = None
@@ -748,8 +742,8 @@ class weldarray(np.ndarray):
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
+        print("restype is: ", restype)
         arr = self.weldobj.evaluate(restype, verbose=self._verbose, passes=CUR_PASSES)
-
         if hasattr(arr, '__len__'):
             arr = arr.reshape(self._real_shape)
         else:
