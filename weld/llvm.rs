@@ -190,9 +190,9 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     debug!("After type inference:\n{}\n", print_typed_expr(&expr));
     stats.weld_times.push(("Type Inference".to_string(), start.to(end)));
 
-    println!("before opt passes\n{}", print_typed_expr(&expr));
+    //println!("before opt passes\n{}", print_typed_expr(&expr));
     apply_opt_passes(&mut expr, &conf.optimization_passes, stats, conf.enable_experimental_passes)?;
-    println!("after opt passes\n{}", print_typed_expr(&expr));
+    //println!("after opt passes\n{}", print_typed_expr(&expr));
 
     let start = PreciseTime::now();
     uniquify::uniquify(&mut expr)?;
