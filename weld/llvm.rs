@@ -63,7 +63,7 @@ pub struct LlvmVecInfo {
     pub el_type: String,
 }
 
-static NVVM_FLAG :bool = true;
+static NVVM_FLAG :bool = false;
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 static NVVM_PRELUDE_CODE: &'static str = include_str!("resources/nvptx_prelude.ll");
 
@@ -135,7 +135,8 @@ pub fn apply_opt_passes(expr: &mut TypedExpr,
                         use_experimental: bool) -> WeldResult<()> {
     for pass in opt_passes {
         // FIXME: tmp while testing nvptx stuff.
-        if pass.pass_name() == "vectorize" && NVVM_FLAG {
+        //if pass.pass_name() == "vectorize" && NVVM_FLAG {
+        if pass.pass_name() == "vectorize" {
             continue;
         }
 
@@ -190,9 +191,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     debug!("After type inference:\n{}\n", print_typed_expr(&expr));
     stats.weld_times.push(("Type Inference".to_string(), start.to(end)));
 
-    //println!("before opt passes\n{}", print_typed_expr(&expr));
     apply_opt_passes(&mut expr, &conf.optimization_passes, stats, conf.enable_experimental_passes)?;
-    //println!("after opt passes\n{}", print_typed_expr(&expr));
 
     let start = PreciseTime::now();
     uniquify::uniquify(&mut expr)?;
@@ -245,6 +244,16 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     let mut f2 = BufWriter::new(f2);
     let f2_code = format!("{}", llvm_code);
     f2.write_all(f2_code.as_bytes()).expect("Unable to write data");
+
+    let sir_file = File::create("/lfs/1/pari/weld-sir.txt").expect("Unable to create file");
+    let mut sir_handle = BufWriter::new(sir_file);
+    let sir_code = format!("{}", &sir_prog);
+    sir_handle.write_all(sir_code.as_bytes()).expect("Unable to write data");
+
+    let weld_file = File::create("/lfs/1/pari/weld-code.txt").expect("Unable to create file");
+    let mut weld_handle = BufWriter::new(weld_file);
+    let weld_code = format!("{}", print_expr(&expr));
+    weld_handle.write_all(weld_code.as_bytes()).expect("Unable to write data");
 
     let ref timestamp = format!("{}", time::now().to_timespec().sec);
 
@@ -1541,6 +1550,7 @@ impl LlvmGenerator {
             let arr_idx = if iter.kind == IterKind::NdIter {
                 self.nditer_next_element(func, ctx, iter, i.to_string()).unwrap()
             } else if iter.start.is_some() {
+                println!("iter.start is some!");
                 // TODO(shoumik) implement. This needs to be a gather instead of a
                 // sequential load.
                 if iter.kind == IterKind::SimdIter {
@@ -2018,7 +2028,6 @@ impl LlvmGenerator {
                                 Merger( .. ) => {
                                     reduction = true;
                                 }
-
                                 Appender( .. ) => {
                                     // this is redundant because reduction should already be false.
                                     reduction = false;
@@ -2036,14 +2045,15 @@ impl LlvmGenerator {
                     }
                 }
             }
+            // FIXME: do we need to check terminator here?
         }
 
 
         // Note: we can do this independently of the kernel generation. So we can modify the
         // wrapper code for mergers when generating the kernel.
-        /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
-         * allocating memory for output (single value OR full array depending on builder type),
-         * calling c++ with compiled ptx, setting the result array. */
+        /* Generate wrapper function for the kernel. Deals with converting arg types, allocating
+         * memory for output (single value OR full array depending on builder type), calling c++
+         * with compiled ptx, setting the result array. */
         // TMP: load in the ptx text.
         let ctx = &mut FunctionContext::new(par_for.innermost);
         // should have same args as the original function.
@@ -2147,10 +2157,12 @@ impl LlvmGenerator {
                 }
             }
         } else {
-            // need to support this!!
+            // need to support this! -- e.g., could be a direct reduction without any ops applied
+            // to the array.
             assert!(false);
         }
 
+        // TMP:
         self.body_code.add("; gonna dump all the nvvm wrapper ctx stuff now");
         self.body_code.add(&ctx.alloca_code.result());
         self.body_code.add(&ctx.code.result());
@@ -4199,6 +4211,7 @@ impl LlvmGenerator {
             }
 
             Assign(ref value) => {
+                println!("gen statement assign");
                 let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
                 let (value_ll_ty, value_ll_sym) = self.llvm_type_and_name(func, value)?;
                 let val_tmp = self.gen_load_var(&value_ll_sym, &value_ll_ty, ctx)?;

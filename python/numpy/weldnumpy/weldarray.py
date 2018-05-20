@@ -708,6 +708,8 @@ class weldarray(np.ndarray):
         different - weld's evaluate function is only ever called on the parent
         arrays.
         '''
+        print("in _eval!!")
+        print(self.weldobj.weld_code)
         # all registered ops will be cleared after this
         self._num_registered_ops = 0
         # Case 1: we are evaluating an in place on in an array. So need to
@@ -883,7 +885,12 @@ class weldarray(np.ndarray):
         if axis != 0:
             return None
 
+        # result(for(_inp1, appender, |b,i,e| merge(b, result(for(iter(obj100,i*1L,i*1L + 2L*2L,2L), merger[f64,
+            # +], |b2, i2, e2| merge(b2,e2))))))
+
+        # we are assuming axis has to be 0 for now, so this will be 1.
         other_axis = (axis + 1) % 2
+
         template = ('result(for({dim_arr}, appender, |b,i,e| merge(b, result(for(iter({arr},'
                     '{start},{end}L,{stride}L), merger[{type}, {op}], |b2, i2, e2| merge(b2,'
                     'e2))))))')

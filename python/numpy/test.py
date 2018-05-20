@@ -6,9 +6,7 @@ NUM_ELS = 10
 def simple_test():
     w1 = wn.random.rand(10)
     w2 = wn.random.rand(10)
-    print(w1)
     w3 = w1 + w2
-    w3 = np.sqrt(w3)
     w3 = w3.evaluate()
 
 def simple_cmp():
@@ -124,26 +122,22 @@ def reduction_along_axis():
     n1 = np.random.rand(2,2)
     w1 = wn.weldarray(n1)
 
-    print('n1[0]: ', n1[0])
-    w2 = np.log(w1)
-    n2 = np.log(n1)
-    n3 = np.sum(n2, axis=0)
-    print("n3: ", n3)
+    print(n1)
 
-    w3 = np.sum(w2, axis=0)
-    print(type(w3))
-    print(w3.shape)
-    print(w3._real_shape)
-    print(w3.weldobj.weld_code)
-    print("w3: ", w3)
+    # w2 = np.log(w1)
+    # n2 = np.log(n1)
+
+    n3 = np.sum(n1, axis=0)
+    w3 = np.sum(w1, axis=0)
+    w3 = w3.evaluate()
 
     # print(np.allclose(n3, w3))
 
 # blackscholes_bug1()
-simple_test()
+# simple_test()
 # simple_cmp()
 # blackscholes_bug_commutativity()
 # boundary_error()
 # simple_unary()
-dot_product()
-# reduction_along_axis()
+# dot_product()
+reduction_along_axis()
