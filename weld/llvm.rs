@@ -63,7 +63,7 @@ pub struct LlvmVecInfo {
     pub el_type: String,
 }
 
-static NVVM_FLAG :bool = false;
+static NVVM_FLAG :bool = true;
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 static NVVM_PRELUDE_CODE: &'static str = include_str!("resources/nvptx_prelude.ll");
 
@@ -1424,7 +1424,6 @@ impl LlvmGenerator {
         let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
         let elem_ty_str = self.llvm_type(&elem_ty)?;
         for (i, iter) in par_for.data.iter().enumerate() {
-            println!("i = {} ", i);
             //assert!(iter.kind == IterKind::ScalarIter);
             let inner_elem_ty_str = if par_for.data.len() == 1 {
                 elem_ty_str.clone()
@@ -1866,11 +1865,14 @@ impl LlvmGenerator {
                                 &input_alloc_size));
         ctx.code.add(format!("{} = bitcast i8* {} to {}*", &input_args, &input_args_tmp, &input_arg_type));
 
-        /* iterate over params as opposed to par_for.data because right now we are setting up the
-         * parameters to be passed in to weld_ptx_execute, so we want them to be in the same order
-         * as they are passed in to weld functions so the ptx code we generated would be
-         * appropriate to run on these input arguments */
-        for (i, (arg, ty)) in func.params.iter().enumerate() {
+        // iterate over params as opposed to par_for.data because right now we are setting up the
+        // parameters to be passed in to weld_ptx_execute, so we want them to be in the same order
+        // as they are passed in to weld functions so the ptx code we generated would be
+        // appropriate to run on these input arguments
+        // since we are skipping some elements because we loop over func.params
+        // instead of par_for.data, we need to increment i only for the Vectors.
+        let mut i = 0;
+        for (arg, ty) in func.params.iter() {
             /* we only want to pass the vectors from the parameters as arguments to
              * weld_ptx_execute. These correspond to the elements in par_for.data  */
             // TODO: this pattern is being used at least three times, find a way to check it with
@@ -1883,7 +1885,6 @@ impl LlvmGenerator {
                     continue;
                 }
             }
-            println!("arg = {}", arg);
             // TODO: maybe shouldn't depend on par_for.data?
             let inner_elem_ty_str = if par_for.data.len() == 1 {
                 elem_ty_str.clone()
@@ -1929,6 +1930,7 @@ impl LlvmGenerator {
                                  inner_elem_size_ptr));
             ctx.code.add(format!("{} = mul i64 {}, {}", array_size, inner_elem_size, num_elements));
             ctx.code.add(format!("store i64 {}, i64 *{}", array_size, cur_input_size_ptr));
+            i += 1;
         };
 
         let i8_input_args_ptr = ctx.var_ids.next();
@@ -2061,7 +2063,7 @@ impl LlvmGenerator {
 
         let input1 = &par_for.data[0];
         // TODO: Ideally, we want to be able to generate the output independently of the input
-        // here. But for now, we just consider the output to have the same properties as the first
+        // here. But for now, we just consider the output to have the same type as the first
         // input.
         let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
         let elem_llvm_ty = self.llvm_type(&elem_ty)?;
@@ -4211,7 +4213,6 @@ impl LlvmGenerator {
             }
 
             Assign(ref value) => {
-                println!("gen statement assign");
                 let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
                 let (value_ll_ty, value_ll_sym) = self.llvm_type_and_name(func, value)?;
                 let val_tmp = self.gen_load_var(&value_ll_sym, &value_ll_ty, ctx)?;
