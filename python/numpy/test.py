@@ -1,13 +1,14 @@
 import weldnumpy as wn
 import numpy as np
 
-NUM_ELS = 10
+NUM_ELS = 10000000
 
 def simple_test():
     w1 = wn.random.rand(10)
     w2 = wn.random.rand(10)
     w3 = w1 + w2
     w3 = w3.evaluate()
+    print(w3)
 
 def simple_cmp():
     n1 = np.random.rand(NUM_ELS)
@@ -107,6 +108,27 @@ def dot_product():
 
     print(np.allclose(n4, w4.view(np.ndarray)))
 
+def norm():
+    def kernel(arr):
+        arr1 = arr*arr
+        arr2 = np.sum(arr1)
+        # return np.sqrt(arr2)
+        return arr2
+
+    n1 = np.random.randint(0, 3, size=NUM_ELS, dtype=np.int32)
+    w1 = wn.weldarray(n1)
+    w2 = kernel(w1)
+    print(w2)
+
+    # n2 = kernel(n1)
+
+    # print(np.allclose(n2, w2.view(np.ndarray)))
+
+    # w2 = w1*w1
+    # w3 = np.sum(w2)
+    # w4 = np.sqrt(w3)
+    # print(w4)
+
 def simple_unary():
     n1 = np.random.rand(NUM_ELS)
     w1 = wn.weldarray(n1)
@@ -122,8 +144,6 @@ def reduction_along_axis():
     n1 = np.random.rand(2,2)
     w1 = wn.weldarray(n1)
 
-    print(n1)
-
     # w2 = np.log(w1)
     # n2 = np.log(n1)
 
@@ -133,6 +153,16 @@ def reduction_along_axis():
 
     # print(np.allclose(n3, w3))
 
+def simple_int():
+    n1 = np.random.randint(10, 20, size=10, dtype=np.int32)
+    w1 = wn.weldarray(n1)
+
+    w2 = w1 + 5
+    print(w2)
+
+
+# simple_int()
+
 # blackscholes_bug1()
 # simple_test()
 # simple_cmp()
@@ -140,4 +170,5 @@ def reduction_along_axis():
 # boundary_error()
 # simple_unary()
 # dot_product()
-reduction_along_axis()
+# reduction_along_axis()
+norm()

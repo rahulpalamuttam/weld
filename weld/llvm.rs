@@ -78,9 +78,10 @@ static NVVM_IDX: &'static str = "%nvvm-idx";
 
 static NVVM_END_TEMPLATE: &'static str =   "!nvvm.annotations = !{!0}
                                    !0 = !{void (ARGS)* @kernel, !\"kernel\", i32 1}";
-
 static DEVICE_OUTPUT_ARR_PTR: &'static str = "%device_output_arr";
 
+/// ptr to the local variable in a block in which the reduction is accumulated
+static NVVM_REDUCTION_PTR: &'static str = "%nvvm_sum_ptr";
 
 /// The default grain size for the parallel runtime.
 static DEFAULT_INNER_GRAIN_SIZE: i32 = 16384;
@@ -2050,7 +2051,6 @@ impl LlvmGenerator {
             // FIXME: do we need to check terminator here?
         }
 
-
         // Note: we can do this independently of the kernel generation. So we can modify the
         // wrapper code for mergers when generating the kernel.
         /* Generate wrapper function for the kernel. Deals with converting arg types, allocating
@@ -2058,7 +2058,6 @@ impl LlvmGenerator {
          * with compiled ptx, setting the result array. */
         // TMP: load in the ptx text.
         let ctx = &mut FunctionContext::new(par_for.innermost);
-        // should have same args as the original function.
         self.gen_nvvm_wrapper_func(par_for, func, ctx);
 
         let input1 = &par_for.data[0];
@@ -2085,6 +2084,8 @@ impl LlvmGenerator {
             /* use thrust to generate the reduction output */
             // FIXME: test function: calling into thrust.
             let result = ctx.var_ids.next();
+            // FIXME: eventually, we will just change this to 1024 length, and hopefully
+            // DEVICE_OUTPUT_ARR_PTR would have the summed values too.
             ctx.code.add(format!("{} = call {} @thrust_reduce_wrapper(i8 *{}, i64 {})", result,
                          input1_llvm_info.el_type, DEVICE_OUTPUT_ARR_PTR, input1_llvm_info.len));
             self.gen_set_result(ctx, input1_llvm_info.el_type, result);
@@ -2102,6 +2103,12 @@ impl LlvmGenerator {
              * instead of cur.idx, this index will just be based on gpu kernel conventions */
             self.gen_kernel_setup_nvvm(par_for, func, gpu_ctx)?;
             /* main kernel body -- should essentially be the same as in the llvm case */
+            if reduction {
+                /* declare the local reduction variable, and initialize it to 0 */
+                // FIXME: do i need to care about memory hierarchy here?
+                // TODO: correct type.
+                gpu_ctx.code.add(format!("{} = alloca i32", NVVM_REDUCTION_PTR));
+            };
             gpu_ctx.code.add(format!("br label %b.b{}", func.blocks[0].id));
             self.gen_function_body_nvvm(sir, func, gpu_ctx, ctx)?;
             /* end the kernel */
@@ -2152,8 +2159,8 @@ impl LlvmGenerator {
             use std::io;
             use std::io::prelude::*;
             let stdin = io::stdin();
+            println!("compile the program manually, please");
             for (i, line) in stdin.lock().lines().enumerate() {
-                println!("{}", line.unwrap());
                 if (i == 0) {
                     break;
                 }
@@ -3754,18 +3761,39 @@ impl LlvmGenerator {
             }
 
             Merge { ref builder, ref value } => {
-                /// FIXME: we should do this if only there is something for
-                /// weld_ptx_execute to do. That information needs to somehow be present in
-                /// nvvm_wrapper_ctx hopefully.
-                ctx.code.add(format!("; merging into output"));
+                /* need this value for all merger types */
                 let val_ty = func.symbol_type(value)?;
                 let val_ll_ty = self.llvm_type(val_ty)?;
                 let val_ll_sym = llvm_symbol(value);
                 let val_tmp = self.gen_load_var(&val_ll_sym, &val_ll_ty, ctx)?;
-                /* nvvm code of type: store double %t.t14, double addrspace(1)* %t.t13 */
-                unsafe {
-                    ctx.code.add(format!("store {} {}, {} {} ", val_ll_ty, val_tmp,
-                                         NVVM_OUTPUT_ARR_TY.clone().unwrap(), NVVM_OUTPUT_VAL_PTR));
+
+                let bld_ty = func.symbol_type(builder)?;
+                if let Builder(ref bld_kind, _) = *bld_ty {
+                    match *bld_kind {
+                        Merger( .. ) => {
+                            println!("!!it is a Merger!!");
+                            ctx.code.add(format!("; merging into output for merger"));
+                            let (tmp_sum, tmp_sum2) = (ctx.var_ids.next(), ctx.var_ids.next());
+                            ctx.code.add(format!("{} = load {}, {}* {}", tmp_sum, val_ll_ty, val_ll_ty, NVVM_REDUCTION_PTR));
+                            ctx.code.add(format!("{} = add {} {}, {}", tmp_sum2, val_ll_ty, tmp_sum, val_ll_sym));
+                            ctx.code.add(format!("store {} {}, {} {}", val_ll_ty, tmp_sum2, val_ll_ty, NVVM_REDUCTION_PTR));
+
+                        }
+                        Appender( .. ) => {
+                            /// FIXME: we should do this if only there is something for
+                            /// weld_ptx_execute to do. That information needs to somehow be present in
+                            /// nvvm_wrapper_ctx hopefully.
+                            ctx.code.add(format!("; merging into output for appender"));
+                            /* nvvm code of type: store double %t.t14, double addrspace(1)* %t.t13 */
+                            unsafe {
+                                ctx.code.add(format!("store {} {}, {} {} ", val_ll_ty, val_tmp,
+                                                     NVVM_OUTPUT_ARR_TY.clone().unwrap(), NVVM_OUTPUT_VAL_PTR));
+                            }
+                        }
+                        _ => {
+                            return weld_err!("Unsupported builder kind for nvvm")?
+                        }
+                    }
                 }
             }
 
