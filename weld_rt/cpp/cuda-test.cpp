@@ -58,27 +58,16 @@ void print_vals(ptx_arg input) {
 extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 {
     /* FIXME: need to make sure arg2 is converted to appropriate form on both sides etc. */
-    printf("weld ptx execute called!\n");
     ptx_arg *input_args = (ptx_arg *) arg1;
-    printf("num args = %d\n", num_args);
-    printf("size of 0 input: %ld\n", input_args[0].size);
-    printf("num elements of 0 input: %ld\n", input_args[0].num_elements);
     /* FIXME */
     int size = input_args[0].size;
     /* FIXME: output should be of type ptx_arg too */
     //int8_t *output = (int8_t *) arg2;
 
-    // TODO: remove.
-    //for (int i = 0; i < num_args; i++) print_vals(input_args[i]);
-    printf("**************************************\n");
-    printf("value of arg 0 = %ld;\n  ", (double) input_args[0].data[0]);
-    printf("**************************************\n");
-
     CUdevice    device;
     CUmodule    cudaModule;
     CUcontext   context;
     CUfunction  function;
-    ////CUlinkState linker;       // TODO: what is the use for this?
     int         devCount;
     // CUDA initialization
     // TODO: maybe this does not have to be reinitialized every time?
@@ -98,7 +87,7 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     }
 
     // TODO: this string should be passed in.
-    std::ifstream t("/lfs/1/pari/kernel.ptx");
+    std::ifstream t("/tmp/kernel.ptx");
     if (!t.is_open()) {
         printf("kernel.ptx not found!\n");
         exit(0);
@@ -156,13 +145,15 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     for (int i = 0; i < num_args; i++) {
         checkCudaErrors(cuMemFree(dev_inputs[i]));
     }
-
-    //checkCudaErrors(cuMemFree(dev_output));
-
     checkCudaErrors(cuModuleUnload(cudaModule));
+    remove("/tmp/kernel.ptx");
 
+    // Note: we copy dev_output back to host memory later (so we can potentially act on it in gpu
+    // memory, e.g., by passing it to thrust). Thus we don't free these here.
     // if we need to copy it back, seems like we need to leave this around?
     //checkCudaErrors(cuCtxDestroy(context));
+    //checkCudaErrors(cuMemFree(dev_output));
+
     return (int8_t *) dev_output;
 }
 

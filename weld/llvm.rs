@@ -49,6 +49,7 @@ use super::parser::*;
 /// TODO: remove this, just need for temporary testing.
 use std::fs::File;
 use std::io::{BufWriter};
+use super::util::get_weld_home;
 
 /// useful to make the code related to accessing elements from the array less verbose. An instance
 /// of LlvmVecInfo represents the llvm symbol names related to a single array in a given context.
@@ -139,10 +140,6 @@ pub fn apply_opt_passes(expr: &mut TypedExpr,
             continue;
         }
 
-        //else if pass.pass_name() == "loop-fusion" {
-            //println!("skipping loop fusion");
-            //continue;
-        //};
         let start = PreciseTime::now();
         pass.transform(expr, use_experimental)?;
         let end = PreciseTime::now();
@@ -190,9 +187,9 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     debug!("After type inference:\n{}\n", print_typed_expr(&expr));
     stats.weld_times.push(("Type Inference".to_string(), start.to(end)));
 
-    println!("before opt passes\n{}", print_typed_expr(&expr));
+    //println!("before opt passes\n{}", print_typed_expr(&expr));
     apply_opt_passes(&mut expr, &conf.optimization_passes, stats, conf.enable_experimental_passes)?;
-    println!("after opt passes\n{}", print_typed_expr(&expr));
+    //println!("after opt passes\n{}", print_typed_expr(&expr));
 
     let start = PreciseTime::now();
     uniquify::uniquify(&mut expr)?;
@@ -2130,22 +2127,23 @@ impl LlvmGenerator {
             let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
                                            nvvm_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                            gpu_ctx.code.result());
-            let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
+
+			let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
+            let f = File::create(kernel_file).expect("Unable to create file");
             let mut f = BufWriter::new(f);
             f.write_all(code.as_bytes()).expect("Unable to write data");
 
             /* Part 2: Compile the kernel to ptx code. */
             /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
              * it? */
-            use std::io;
-            use std::io::prelude::*;
-            let stdin = io::stdin();
-            for (i, line) in stdin.lock().lines().enumerate() {
-                println!("{}", line.unwrap());
-                if (i == 0) {
-                    break;
-                }
-            }
+			use std::process::Command;
+			let mut compile_script: String = get_weld_home().unwrap().to_owned();
+			compile_script.push_str("/compile-ptx.sh");
+
+			Command::new(compile_script)
+            .output()
+            .expect("failed to execute process");
+
         } else {
             // need to support this!!
             assert!(false);
