@@ -2,16 +2,30 @@
 
 ## Contents
 
-    * [Overview](#overview)
-    * [Compiling](#compiling)
-    * [Developer Documentation](#developer-documentation)
-    * [Examples](#examples)
-    * [TODO](#todo)
+* [Overview](#overview)
+* [Compiling](#compiling)
+* [Developer Documentation](#developer-documentation)
+* [Examples](#examples)
+* [TODO](#todo)
 
 ## Overview
 
-* Note: Whether weld generates the NVVM code v/s the usual LLVM code is
-controlled by a flag, NVVM_FLAG, in weld/llvm.rs.
+#### Setup and Requirements
+
+* Requires
+    * cuda
+    * pytest (only to run the tests)
+* We write (and clean up) temporary compilation files to /etc/
+* compile-ptx.sh should be executable
+* WELD_HOME environment variable should be set up
+* Note: To run the NVVM code, ``NVVM_FLAG`` in weld/llvm.rs should be true
+
+```bash
+cd python/weldnumpy
+pytest tests-gpu.py
+```
+
+* All the current tests should pass
 
 ## Compiling
 
@@ -21,26 +35,38 @@ should work, but with a few subtler differences:
 
 * libNVVM is usually tied to a particular version of LLVM (not the latest
 version) - thus the generated code might need to be slightly modified.
-* libNVVM
+* libNVVM appears to have more optimization passes - and probably generates
+better code according to a few online sources.
 
 #### Manual Compilation
 
-* Currently, we emit the generated NVVM file, manually compile it to .ptx, and
-then use this .ptx file in the cuda code. The commands for manually compiling
-a NVVM file are:
-
-```bash
-TODO: add these.
-```
+Currently, we emit the generated NVVM file, compile it by executing a shell
+script and using LLVM's CLI, and then use the generated .ptx file in the cuda
+code.
 
 #### Programatic Compilation
+
+Ideally, we should be able to use LLVM's API to compile the file / or libNVVM's
+API. But we are still debugging some issues with the LLVM programmatic
+compilation.
 
 ## Developer Documentation
 
 #### New Code
 
 * The new code is concentrated across the files weld/llvm.rs,
-and weld_rt/cpp/weld_cuda_backend.cpp.
+and weld_rt/cpp/weld_cuda_backend.cpp. In weld/llvm.rs, the new functions are
+divided into two parts:
+    * code generation for the gpu kernel.
+    * llvm code that glues it together with the rest of the generated program
+
+These are both in separate ``impl LlvmGenerator'' blocks.
+(TODO: need to look further into subclassing LlvmGenerator -- but it wasn't
+immediately clear if that would work without much modifications)
+
+* Most of these functions have a similar function in the llvm code-gen, and we
+try to call the llvm code gen functions whenever possible. In the comments at
+the top of each function, we describe the differences between the two cases.
 
 #### Code Gen
 
@@ -55,7 +81,14 @@ backend](https://llvm.org/docs/NVPTXUsage.html).
 
 ##### Differences from usual Weld code-gen
 
-* No continuation functions:
+* Continuation functions:
+    * This wasn't completely trivial because the for loop is being executed as
+    a gpu kernel. In some cases, I believe the continuation function involves
+    calling a new function -- but we probably can't do it from the gpu kernel.
+    This seems to be required for nested for loops, or weld code of the type:
+
+    * Continuation functions are also used for supporting if blocks -- this
+    should be possible to add without much of a change.
 
 A few other minor differences are:
 
@@ -65,25 +98,21 @@ A few other minor differences are:
 ## TODO
 
 #### Reductions:
-* currently, we added addition by calling a thrust, but this is
-* clearly slow in comparison to generating a
-        - compare thrust call, with transform_and_reduce implementation. e.g.,
-        for dot product. If it is significant, then we should do something
-        about it.
+
+* currently, we do sum by calling a thrust function on the gpu array generated
+by previous computations, but this is clearly slower in comparison to
+generating a single kernel call. (For instance, thrust's transform_and_reduce
+option performs clearly better than our implementation)
 
 #### Annotations:
 
-* add annotations to each for loop so we can easily add the gpu v/s cpu flag in
+* Add annotations to each for loop so we can easily add the gpu v/s cpu flag in
 the weld code - perhaps during one of the transformations / or let the user
 specify it.
 
 #### Programmatic Compilation:
 
 #### Minor
-
-* Add automatic tests (currently python/numpy/test.py serves as the test file - but
-because we do not have programmatic compilation, this requires a lot of manual
-compilations...)
 
 * free the device output in case of reductions
 * Decide when we definitely don't want to offload to gpu:
