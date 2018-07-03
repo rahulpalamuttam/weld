@@ -6,6 +6,7 @@ sys.path.append("/lfs/1/pari/weld/python/numpy")
 
 from weldnumpy import weldarray
 import scipy.special as ss
+from test_utils import *
 
 '''
 TODO: New tests:

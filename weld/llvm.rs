@@ -51,6 +51,28 @@ use std::fs::File;
 use std::io::{BufWriter};
 use super::util::get_weld_home;
 
+static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
+
+
+static NVVM_PRELUDE_CODE: &'static str = include_str!("resources/nvptx_prelude.ll");
+
+/// CONSTANTS
+/// These are used in the nvvm code. Defining these here because they are used in multiple places,
+/// but we could potentially get rid of them.
+
+/// output array, or scalar value, in which the gpu kernel will update results. Declaring it as a
+/// global because we are not keeping track of it in the weld IR as this is only specific to nvvm
+static NVVM_OUTPUT_ARR: &'static str = "%output";
+static NVVM_OUTPUT_VAL_PTR: &'static str = "%output_val";
+// FIXME: this requires unsafe blocks to set in the code, so a bit ugly.
+static mut NVVM_OUTPUT_ARR_TY : Option<String> = None;
+
+/// idx for the gpu kernel. based on tid.x etc.
+static NVVM_IDX: &'static str = "%nvvm-idx";
+static NVVM_END_TEMPLATE: &'static str =   "!nvvm.annotations = !{!0}
+                                   !0 = !{void (ARGS)* @kernel, !\"kernel\", i32 1}";
+static DEVICE_OUTPUT_ARR_PTR: &'static str = "%device_output_arr";
+
 /// useful to make the code related to accessing elements from the array less verbose. An instance
 /// of LlvmVecInfo represents the llvm symbol names related to a single array in a given context.
 /// Each of the elements represents the llvm IR symbol names. e.g., type represents the llvm IR
@@ -65,23 +87,6 @@ pub struct LlvmVecInfo {
 }
 
 static NVVM_FLAG :bool = true;
-static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
-static NVVM_PRELUDE_CODE: &'static str = include_str!("resources/nvptx_prelude.ll");
-
-/* output array, or scalar value, in which the gpu kernel will update results. Declaring it as a
- * global because we are not keeping track of it in the weld IR as this is only specific to nvvm*/
-static NVVM_OUTPUT_ARR: &'static str = "%output";
-static NVVM_OUTPUT_VAL_PTR: &'static str = "%output_val";
-// FIXME: this requires unsafe blocks so quite ugly overall.
-static mut NVVM_OUTPUT_ARR_TY : Option<String> = None;
-/* idx for the gpu kernel. based on tid.x etc. */
-static NVVM_IDX: &'static str = "%nvvm-idx";
-
-static NVVM_END_TEMPLATE: &'static str =   "!nvvm.annotations = !{!0}
-                                   !0 = !{void (ARGS)* @kernel, !\"kernel\", i32 1}";
-
-static DEVICE_OUTPUT_ARR_PTR: &'static str = "%device_output_arr";
-
 
 /// The default grain size for the parallel runtime.
 static DEFAULT_INNER_GRAIN_SIZE: i32 = 16384;
@@ -135,7 +140,6 @@ pub fn apply_opt_passes(expr: &mut TypedExpr,
                         stats: &mut CompilationStats,
                         use_experimental: bool) -> WeldResult<()> {
     for pass in opt_passes {
-        // FIXME: tmp while testing nvptx stuff.
         if pass.pass_name() == "vectorize" && NVVM_FLAG {
             continue;
         }
@@ -435,32 +439,6 @@ impl LlvmGenerator {
     // Helpers for Function Code Generation
     //
     *********************************************************************************************/
-
-    fn get_arg_str_nvvm(&mut self, params_sorted: &BTreeMap<Symbol, Type>, suffix: &str)
-        -> WeldResult<String> {
-        let mut arg_types = String::new();
-        let mut output_str: String = "".to_owned();
-        for (arg, ty) in params_sorted.iter() {
-            /* FIXME: skip everything except vectors for now */
-            match *ty {
-                Vector(_) => {
-                    /* go on to set the argument */
-                }
-                _ => {
-                    continue;
-                }
-            }
-            let arg_str = format!("{} {}{}, ", self.nvvm_type(&ty)?, llvm_symbol(&arg), suffix);
-            arg_types.push_str(&arg_str);
-            // FIXME: we are assuming output is same type as input for now. Should depend on builder
-            // type.
-            if output_str == "" {
-                output_str = format!("{} {}{}", self.nvvm_type(&ty)?, NVVM_OUTPUT_ARR, suffix);
-            }
-        }
-        arg_types.push_str(&output_str);
-        Ok(arg_types)
-    }
 
     /// Given a set of parameters and a suffix, returns a string used to represent LLVM function
     /// arguments. Each argument has the given suffix. Argument names are sorted by their symbol
@@ -1383,88 +1361,6 @@ impl LlvmGenerator {
         nditer
     }
 
-    /// TODO: add details.
-    fn gen_kernel_setup_nvvm(&mut self,
-                     par_for: &ParallelForData,
-                     func: &SirFunction,
-                     ctx: &mut FunctionContext) -> WeldResult<()> {
-        ctx.code.add("br label %kernel.setup");
-        ctx.code.add("kernel.setup:");
-        // TODO: generalize this to blockDim cases etc.
-        // %idx can now be used to access current elements in the arrays.
-        let (tid_x, block_id_x, block_dim_x) = (ctx.var_ids.next(), ctx.var_ids.next(),
-                                      ctx.var_ids.next());
-        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone
-                             nounwind", tid_x));
-        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone
-                             nounwind", block_id_x));
-        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone
-                             nounwind", block_dim_x));
-        let tmp1 = ctx.var_ids.next();
-        ctx.code.add(format!("{} = mul i32 {}, {}", tmp1, block_id_x, block_dim_x));
-        ctx.code.add(format!("{} = add i32 {}, {}", NVVM_IDX, tmp1, tid_x));
-
-        // TODO: just to make sure for now, need better handling here.
-        assert!(par_for.innermost);
-        // Need to set up the appropriate elements for each of the input arrays
-        let mut prev_ref = String::from("undef");
-        // TODO: does this always work in the nvvm case? Need to look into it further.
-        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
-        let elem_ty_str = self.llvm_type(&elem_ty)?;
-        for (i, iter) in par_for.data.iter().enumerate() {
-            println!("i = {} ", i);
-            //assert!(iter.kind == IterKind::ScalarIter);
-            let inner_elem_ty_str = if par_for.data.len() == 1 {
-                elem_ty_str.clone()
-            } else {
-                match *elem_ty {
-                    Struct(ref v) => self.llvm_type(&v[i])?,
-                    _ => weld_err!("Internal error: invalid element type {}", print_type(elem_ty))?,
-                }
-            };
-            /* nvvm code like: %ptrA = getelementptr float, float addrspace(1)* %A, i32 %id */
-            let arr_ty_str = self.nvvm_type(func.params.get(&iter.data).unwrap())?;
-            let arr_elem_tmp_ptr = ctx.var_ids.next();
-            ctx.code.add(format!("{} = getelementptr {}, {} {}, i32 {}", arr_elem_tmp_ptr,
-                                 inner_elem_ty_str, arr_ty_str, llvm_symbol(&iter.data).as_str(), NVVM_IDX));
-            let inner_elem_tmp = ctx.var_ids.next();
-            /* note: arr_elem_tmp_ptr is a ptr into the arr, so its type should be same as arr */
-            ctx.code.add(format!("{} = load {}, {} {}", inner_elem_tmp, inner_elem_ty_str, arr_ty_str,
-                                 arr_elem_tmp_ptr));
-
-            /* FIXME: This assumes that output array is an array and not a val. NEED TO CHECK FOR
-             * appender etc. */
-            // checking i == 0, because we only need to do this once.
-            if i == 0 {
-                ctx.code.add(format!("{} = getelementptr {}, {} {}, i32 {}", NVVM_OUTPUT_VAL_PTR,
-                                     inner_elem_ty_str, arr_ty_str, NVVM_OUTPUT_ARR, NVVM_IDX));
-                unsafe {
-                    NVVM_OUTPUT_ARR_TY = Some(arr_ty_str.clone());
-                }
-            }
-
-            if par_for.data.len() == 1 {
-                prev_ref.clear();
-                prev_ref.push_str(&inner_elem_tmp);
-            } else {
-                let elem_tmp = ctx.var_ids.next();
-                ctx.code.add(format!("{} = insertvalue {} {}, {} {}, {}",
-                                     elem_tmp,
-                                     elem_ty_str,
-                                     prev_ref,
-                                     inner_elem_ty_str,
-                                     inner_elem_tmp,
-                                     i));
-                prev_ref.clear();
-                prev_ref.push_str(&elem_tmp);
-            };
-        }
-        let elem_str = llvm_symbol(&par_for.data_arg);
-        /* stores prev_ref in place pointed to by elem_str */
-        ctx.code.add(format!("store {} {}, {}* {}", &elem_ty_str, prev_ref, &elem_ty_str, elem_str));
-
-        Ok(())
-    }
 
     /// Generates the first half of the loop iteration code, which computes the index to iterate to
     /// and loads data before passing it to the body where the actual computations are performed.
@@ -1685,28 +1581,6 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn gen_function_header_nvvm(&mut self, arg_types: &str, func: &SirFunction, ctx: &mut
-                                FunctionContext) -> WeldResult<()> {
-        ctx.alloca_code.add(format!("define void @kernel({}) {{", arg_types));
-        ctx.alloca_code.add(format!("fn.entry:"));
-        // Note: this is a gpu kernel. We don't want (or need) to store the arguments locally on
-        // the stack - as was done with the other functions.
-
-        // FIXME: where are these getting allocated? Should we be specifying address space here?
-        // TODO: get rid of allocations that we are not going to use, like bld'r's etc.
-        for (arg, ty) in func.locals.iter() {
-            match *ty {
-                Scalar( .. ) | Struct( .. ) => {
-                    let arg_str = llvm_symbol(&arg);
-                    let ty_str = self.llvm_type(&ty)?;
-                    ctx.add_alloca(&arg_str, &ty_str)?;
-                }
-                _ => { continue; }
-            }
-        }
-        Ok(())
-    }
-
     /// Generates a header common to each top-level generated function.
     fn gen_function_header(&mut self, arg_types: &str, func: &SirFunction, ctx: &mut FunctionContext) -> WeldResult<()> {
         // Start the entry block by defining the function and storing all its arguments on the
@@ -1827,106 +1701,6 @@ impl LlvmGenerator {
             Ok(())
     }
 
-    /// Wrapper function for calling the c++ function (weld_ptx_execute) which will execute the
-    /// nvvm string we compiled to a ptx module.
-    fn gen_nvvm_wrapper_func(&mut self, par_for: &ParallelForData, func: &SirFunction,
-                             ctx: &mut FunctionContext) -> WeldResult<()> {
-        let arg_types = self.get_arg_str(&func.params, ".in")?;
-        self.gen_function_header(&arg_types, func, ctx)?;
-        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
-        let elem_ty_str = self.llvm_type(&elem_ty)?;
-        let mut num_elements :String = "".to_owned();
-        /* Get size of struct ptx_input_arg, and allocate enough space for all of them.
-         * Note: ptx_input_arg is declared in the prelude file. */
-        let input_arg_type = "%ptx_input_arg".to_owned();
-        let (input_size_ptr, input_size, input_alloc_size) = (ctx.var_ids.next(), ctx.var_ids.next(),
-                                            ctx.var_ids.next());
-        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", &input_size_ptr, &input_arg_type,
-                             &input_arg_type));
-        ctx.code.add(format!("{} = ptrtoint {} * {} to i64", input_size, &input_arg_type,
-                             &input_size_ptr));
-        ctx.code.add(format!("{} = mul i64 {}, {}", &input_alloc_size, &input_size, par_for.data.len()));
-        let (input_args_tmp, input_args) = (ctx.var_ids.next(), ctx.var_ids.next());
-        /* FIXME: or weld_run_malloc? */
-        ctx.code.add(format!("{} = call i8* @malloc(i64 {})",
-                                &input_args_tmp,
-                                &input_alloc_size));
-        ctx.code.add(format!("{} = bitcast i8* {} to {}*", &input_args, &input_args_tmp, &input_arg_type));
-
-        /* iterate over params as opposed to par_for.data because right now we are setting up the
-         * parameters to be passed in to weld_ptx_execute, so we want them to be in the same order
-         * as they are passed in to weld functions so the ptx code we generated would be
-         * appropriate to run on these input arguments */
-        for (i, (arg, ty)) in func.params.iter().enumerate() {
-            /* we only want to pass the vectors from the parameters as arguments to
-             * weld_ptx_execute. These correspond to the elements in par_for.data  */
-            // TODO: this pattern is being used at least three times, find a way to check it with
-            // fewer lines.
-            match *ty {
-                Vector(_) => {
-                    /* go on to set the argument */
-                }
-                _ => {
-                    continue;
-                }
-            }
-            println!("arg = {}", arg);
-            // TODO: maybe shouldn't depend on par_for.data?
-            let inner_elem_ty_str = if par_for.data.len() == 1 {
-                elem_ty_str.clone()
-            } else {
-                match *elem_ty {
-                    Struct(ref v) => self.llvm_type(&v[i])?,
-                    _ => weld_err!("Internal error: invalid element type {}", print_type(elem_ty))?,
-                }
-            };
-            //output_elem_ty = inner_elem_ty_str.clone();
-            let arr_llvm_info = self.get_array_llvm_info(func, ctx, arg, inner_elem_ty_str, true)?;
-            /* idx into the original array at iteration %cur.i */
-            let arr_ptr = ctx.var_ids.next();
-            ctx.code.add(format!("{} = extractvalue {} {}, 0", arr_ptr, arr_llvm_info.arr_type,
-                                 arr_llvm_info.arr));
-            let i8_arr_ptr = ctx.var_ids.next();
-            ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_arr_ptr, arr_llvm_info.el_type,
-                                 arr_ptr));
-            num_elements = arr_llvm_info.len;
-
-            let (cur_input_data_ptr, cur_input_size_ptr, cur_input_num_el_ptr) =
-                (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
-            /* get all the relevant pointers in the current input arg */
-            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32 0", cur_input_data_ptr,
-                                 input_arg_type, input_arg_type, input_args, i));
-            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32 1", cur_input_size_ptr,
-                                 input_arg_type, input_arg_type, input_args, i));
-            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32 2", cur_input_num_el_ptr,
-                                 input_arg_type, input_arg_type, input_args, i));
-
-            /* storing the correct input array pointer, number of elements, and size in the current
-             * ptx_arg_input */
-            /* i8_arr_ptr points to the input array */
-            ctx.code.add(format!("store i8 *{}, i8 **{}", i8_arr_ptr, cur_input_data_ptr));
-            ctx.code.add(format!("store i64 {}, i64 *{}", num_elements, cur_input_num_el_ptr));
-
-            /* size = sizeof(elem_ty) * num_elements; */
-            let (inner_elem_size_ptr, inner_elem_size, array_size) = (ctx.var_ids.next(),
-                                            ctx.var_ids.next(), ctx.var_ids.next());
-            ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", inner_elem_size_ptr, arr_llvm_info.el_type,
-                                 arr_llvm_info.el_type));
-            ctx.code.add(format!("{} = ptrtoint {} * {} to i64", inner_elem_size, arr_llvm_info.el_type,
-                                 inner_elem_size_ptr));
-            ctx.code.add(format!("{} = mul i64 {}, {}", array_size, inner_elem_size, num_elements));
-            ctx.code.add(format!("store i64 {}, i64 *{}", array_size, cur_input_size_ptr));
-        };
-
-        let i8_input_args_ptr = ctx.var_ids.next();
-        ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_input_args_ptr, input_arg_type,
-                             input_args));
-        ctx.code.add(format!("{} = call i8 *@weld_ptx_execute(i8 *{}, i32 {})",
-                        DEVICE_OUTPUT_ARR_PTR, i8_input_args_ptr, par_for.data.len()));
-
-        Ok(())
-    }
-
     /// generic code for setting the result.
     /// @ctx: function context to which we are adding the code.
     /// @output_ty: llvm variable, representing the type of the output. (e.g., double, or custom
@@ -1946,214 +1720,6 @@ impl LlvmGenerator {
             // changed output_arr to res.
             ctx.code.add(format!("store {} {}, {}* {}", &output_ty, &output_val, &output_ty, output_storage_typed));
             ctx.code.add(format!("call void @weld_rt_set_result(i8* {})", output_storage));
-    }
-
-    /// Assumes DEVICE_OUTPUT_ARR_PTR has the value of the gpu computations. Copies the array back
-    /// to host memory (assuming the output is of same type / shape as the first input in par_for),
-    /// and then sets the weld result.
-    /// TODO: explain args.
-    fn gen_appender_output_nvvm(&mut self, sir: &SirProgram, func: &SirFunction, ctx: &mut
-                                FunctionContext, input1_llvm_info: LlvmVecInfo) -> WeldResult<()> {
-        let (output_arr_ptr, output_arr) = (ctx.var_ids.next(), ctx.var_ids.next());
-        let num_elements = input1_llvm_info.len;
-        let output_ty = input1_llvm_info.arr_type;
-        let output_prefix = input1_llvm_info.prefix;
-        let output_elem_ty = input1_llvm_info.el_type;
-
-        ctx.code.add(format!("{} = call {} {}.new(i64 {})", output_arr, output_ty,
-                    output_prefix, num_elements));
-        let i8_output_arr_ptr = "%i8_output_arr_ptr".to_owned();
-        ctx.code.add(format!("{} = extractvalue {} {}, 0", output_arr_ptr, output_ty, output_arr));
-        ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_output_arr_ptr, output_elem_ty,
-                             output_arr_ptr));
-
-        // TODO: decompose this stuff / or avoid recomputing it here since we already compute it
-        // when dealing with inputs.
-        /* size = sizeof(elem_ty) * num_elements; */
-        let (output_elem_size_ptr, output_elem_size, array_size) = (ctx.var_ids.next(),
-                                        ctx.var_ids.next(), ctx.var_ids.next());
-        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", output_elem_size_ptr, output_elem_ty,
-                             output_elem_ty));
-        ctx.code.add(format!("{} = ptrtoint {} * {} to i64", output_elem_size, output_elem_ty,
-                             output_elem_size_ptr));
-        ctx.code.add(format!("{} = mul i64 {}, {}", array_size, output_elem_size, num_elements));
-        ctx.code.add(format!("call void @weld_copy_dtoh(i8 *{}, i8 *{}, i64 {})",
-                        i8_output_arr_ptr, DEVICE_OUTPUT_ARR_PTR, array_size));
-        // converting the output_arr_ptr to a weld vector so we can set it to the result.
-        self.gen_set_result(ctx, output_ty, output_arr);
-        Ok(())
-    }
-
-    fn gen_par_for_functions_nvvm(&mut self, par_for: &ParallelForData, sir: &SirProgram,
-                                      func: &SirFunction) -> WeldResult<()> {
-        // If this loop has been visited/generated, just return.
-        // TODO: check if nvvm loop has been generated before, then is it stored correctly?
-        if !self.visited.insert(func.id) {
-            return Ok(());
-        }
-
-        /* Check all the statements in the func to figure out what we need to execute on the gpu:
-         *      - binary ops / unary ops on the full array: we generate the relevant ptx code.
-         *      - reductions: we call thrust, either with the input, or if there were any previous
-         *      binary ops / unary ops, then we use the output generated from those.
-         */
-        // assuming it has to be at least one of these. But can also be a bunch of ptx ops followed
-        // by a reduction.
-        let mut ptx_ops = false; // any full array operations that we generate ptx code for.
-        let mut reduction = false;
-        for b in func.blocks.iter() {
-            for s in b.statements.iter() {
-                match s.kind {
-                    UnaryOp { .. } | BinOp { ..} => {
-                        ptx_ops = true;
-                    }
-
-                    Merge { ref builder, ref value } => {
-                        let bld_ty = func.symbol_type(builder)?;
-                        if let Builder(ref bld_kind, _) = *bld_ty {
-                            match *bld_kind {
-                                Merger( .. ) => {
-                                    reduction = true;
-                                }
-
-                                Appender( .. ) => {
-                                    // this is redundant because reduction should already be false.
-                                    reduction = false;
-                                }
-                                _ => {
-                                    return weld_err!("Unsupported builder kind for nvvm")?
-                                }
-                            }
-                        }
-                    }
-
-                    _ => {
-                        // we only care about determining if we need to perform a reduction or not.
-                        continue;
-                    }
-                }
-            }
-        }
-
-
-        // Note: we can do this independently of the kernel generation. So we can modify the
-        // wrapper code for mergers when generating the kernel.
-        /* Part 3: Generate wrapper function for the kernel. Deals with converting arg types,
-         * allocating memory for output (single value OR full array depending on builder type),
-         * calling c++ with compiled ptx, setting the result array. */
-        // TMP: load in the ptx text.
-        let ctx = &mut FunctionContext::new(par_for.innermost);
-        // should have same args as the original function.
-        self.gen_nvvm_wrapper_func(par_for, func, ctx);
-
-        let input1 = &par_for.data[0];
-        // TODO: Ideally, we want to be able to generate the output independently of the input
-        // here. But for now, we just consider the output to have the same properties as the first
-        // input.
-        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
-        let elem_llvm_ty = self.llvm_type(&elem_ty)?;
-        let input1_elem_ty = if par_for.data.len() == 1 {
-            elem_llvm_ty.clone()
-        } else {
-            match *elem_ty {
-                Struct(ref v) => self.llvm_type(&v[0])?,
-                _ => weld_err!("Internal error: invalid element type {}", print_type(elem_ty))?,
-            }
-        };
-        let input1_llvm_info = self.get_array_llvm_info(func, ctx, &input1.data,
-                                                        input1_elem_ty, true)?;
-
-        if !reduction {
-            /* generating output - based on the first array in par_for */
-            self.gen_appender_output_nvvm(sir, func, ctx, input1_llvm_info);
-        } else {
-            /* use thrust to generate the reduction output */
-            // FIXME: test function: calling into thrust.
-            let result = ctx.var_ids.next();
-            ctx.code.add(format!("{} = call {} @thrust_reduce_wrapper(i8 *{}, i64 {})", result,
-                         input1_llvm_info.el_type, DEVICE_OUTPUT_ARR_PTR, input1_llvm_info.len));
-            self.gen_set_result(ctx, input1_llvm_info.el_type, result);
-        };
-
-        ctx.code.add("ret void");
-        ctx.code.add("}\n\n");
-
-        if ptx_ops {
-            /* Part 1: Generate the kernel (nvvm code) to be run on the gpu. */
-            let gpu_ctx = &mut FunctionContext::new(par_for.innermost);
-            let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
-            self.gen_function_header_nvvm(&nvvm_arg_types, func, gpu_ctx)?;
-            /* gen the indexing etc. Follow same conventions as gen_loop_iteration_setup, but
-             * instead of cur.idx, this index will just be based on gpu kernel conventions */
-            self.gen_kernel_setup_nvvm(par_for, func, gpu_ctx)?;
-            /* main kernel body -- should essentially be the same as in the llvm case */
-            gpu_ctx.code.add(format!("br label %b.b{}", func.blocks[0].id));
-            self.gen_function_body_nvvm(sir, func, gpu_ctx, ctx)?;
-            /* end the kernel */
-            gpu_ctx.code.add("ret void");
-            gpu_ctx.code.add("}\n\n");
-            /* add the final nvvm annotations about the kernel */
-            let mut arg_types = String::new();
-            let mut output_str: String = "".to_owned();
-            for (arg, ty) in func.params.iter() {
-                match *ty {
-                    Vector(_) => {
-                        /* go on to set the argument */
-                    }
-                    _ => {
-                        continue;
-                    }
-                }
-                let arg_str = format!("{} , ", self.nvvm_type(&ty)?);
-                arg_types.push_str(&arg_str);
-                // FIXME: we are assuming output is same type as input for now. Should depend on builder
-                // type.
-                if output_str == "" {
-                    output_str = format!("{} ", self.nvvm_type(&ty)?);
-                }
-            }
-            arg_types.push_str(&output_str);
-            let nvvm_kernel_annotations = NVVM_END_TEMPLATE.replace("ARGS", &arg_types);
-            gpu_ctx.code.add(nvvm_kernel_annotations);
-
-            /* prelude */
-            /* TODO: this has changed in the programmatic compile version */
-            let mut nvvm_prelude_code = CodeBuilder::new();
-            nvvm_prelude_code.add(NVVM_PRELUDE_CODE);
-            nvvm_prelude_code.add("\n");
-            nvvm_prelude_code.add(self.prelude_code.result());
-
-            /* FIXME: temporary, write to file so we can compile it manually */
-            let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
-                                           nvvm_prelude_code.result(),gpu_ctx.alloca_code.result(),
-                                           gpu_ctx.code.result());
-
-			let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
-            let f = File::create(kernel_file).expect("Unable to create file");
-            let mut f = BufWriter::new(f);
-            f.write_all(code.as_bytes()).expect("Unable to write data");
-
-            /* Part 2: Compile the kernel to ptx code. */
-            /* TODO: compile it, and then save the compiled ptx string somewhere so don't recompile
-             * it? */
-			use std::process::Command;
-			let mut compile_script: String = get_weld_home().unwrap().to_owned();
-			compile_script.push_str("/compile-ptx.sh");
-
-			Command::new(compile_script)
-            .output()
-            .expect("failed to execute process");
-
-        } else {
-            // need to support this!!
-            assert!(false);
-        }
-
-        self.body_code.add("; gonna dump all the nvvm wrapper ctx stuff now");
-        self.body_code.add(&ctx.alloca_code.result());
-        self.body_code.add(&ctx.code.result());
-
-        Ok(())
     }
 
     /// Generates all the functions required to run a single parallel for loop. This includes the
@@ -2328,45 +1894,6 @@ impl LlvmGenerator {
         let llvm_ty = self.llvm_type(ty)?;
         let llvm_str = llvm_symbol(sym);
         Ok((llvm_ty, llvm_str))
-    }
-
-    /// Return the NVVM type name corresponding to a Weld type. So for structures, we just return
-    /// the pointer to the first element of the float array.
-    /// FIXME: we should probably not tie this too closely with addrspace concepts? Or take in an
-    /// arg for addrspace?
-    fn nvvm_type(&mut self, ty: &Type) -> WeldResult<String> {
-        let mut base_ty =
-            match *ty {
-                    Scalar(kind) => llvm_scalar_kind(kind).to_string(),
-                    // PN: need to test this.
-                    Struct(ref fields) => {
-                        // TODO: MAKE nvvm version of this function.
-                        if self.struct_names.get(fields) == None {
-                            self.gen_struct_definition(fields)?
-                        }
-                        /* PN: the first argument would a pointer to the underlying data, while second
-                         * argument would be size */
-                        //self.llvm_type(&fields[0]).unwrap().to_string()
-                        self.struct_names.get(fields).unwrap().to_string()
-                    }
-
-                    Vector(ref elem) => {
-                        /* pointer to the element type */
-                        self.llvm_type(elem).unwrap()
-                    }
-
-                    _ => {
-                        return weld_err!("Unsupported type for nvvm {}", print_type(ty))?
-                    }
-                };
-        /* assumptions:
-         *  1. only passing in pointers to nvvm
-         *  2. only in global memory - addrspace(1)
-         * so far both these assumptions seem valid, but might need to make this more flexible.
-         */
-        let addr_space :String = " addrspace(1)*".to_owned();
-        base_ty.push_str(&addr_space);
-        Ok(base_ty)
     }
 
     /// Return the LLVM type name corresponding to a Weld type.
@@ -3682,84 +3209,6 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    /// Generate the main computational code for a program. Called after the data has been setup in
-    /// gen_kernel_setup_nvvm. The main difference with llvm version (gen_function_body) is that we
-    /// don't call builders (like merger, appender).
-    /// @func:
-    /// @ctx: Context of the current function being generated - which is the NVVM code for the given
-    /// loop that will be executed on the gpu.
-    /// @nvvm_wrapper_ctx: Context for the wrapper function in llvm code used to execute the NVVM
-    /// code on the gpu, and set the weld result etc. We need to pass it in, because its behaviour
-    /// depends on the NVVM code we are generating - for instance, the nvvm code could be of the
-    /// following type:
-    ///     - appenders: Here, we will just call weld_ptx_execute (which executes it on the gpu)
-    ///     and copy the output array back to host memory, and set the result.
-    ///     - mergers (reductions): Here, we call weld_ptx_execute on any appenders we
-    ///     may have on the gpu, then perform a reduction on the device output (e.g., in dot
-    ///     product, we first multiply the two arrays (appender), and then reduce it with a sum)
-    fn gen_function_body_nvvm(&mut self, sir: &SirProgram, func: &SirFunction, ctx: &mut
-                              FunctionContext, nvvm_wrapper_ctx :&mut FunctionContext) -> WeldResult<()> {
-        for b in func.blocks.iter() {
-            ctx.code.add(format!("b.b{}:", b.id));
-            for s in b.statements.iter() {
-                self.gen_statement_nvvm(s, func, ctx, nvvm_wrapper_ctx)?;
-            }
-            // FIXME: is this going to be a problem -- what would terminator conditions for nvvm
-            // be?
-            //self.gen_terminator(&b.terminator, sir, func, ctx)?
-        }
-        Ok(())
-    }
-
-    fn gen_statement_nvvm(&mut self, statement: &Statement, func: &SirFunction, ctx: &mut
-                          FunctionContext, nvvm_wrapper_ctx: &mut FunctionContext) -> WeldResult<()> {
-        // TODO: might not need this.
-        let ref output = statement.output.clone().unwrap_or(Symbol::new("unused", 0));
-        if self.trace_run {
-            self.gen_puts(&format!("  {}", statement), ctx);
-        }
-        match statement.kind {
-            UnaryOp { op, ref child, } => {
-                ctx.code.add(format!("; {}", statement));
-                let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
-                let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
-                let child_ty = func.symbol_type(child)?;
-
-                let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
-
-                if let Scalar(ref ty) = *child_ty {
-                    let res_tmp = ctx.var_ids.next();
-                    let op_name = nvvm_scalar_unaryop(op, ty)?;
-                    ctx.code.add(format!("{} = call {} {}({} {})", res_tmp, child_ll_ty, op_name, child_ll_ty, child_tmp));
-                    self.gen_store_var(&res_tmp, &output_ll_sym, &output_ll_ty, ctx);
-                } else {
-                    weld_err!("nvvm does not suport simd instructions in Unaryp")?;
-                }
-            }
-
-            Merge { ref builder, ref value } => {
-                /// FIXME: we should do this if only there is something for
-                /// weld_ptx_execute to do. That information needs to somehow be present in
-                /// nvvm_wrapper_ctx hopefully.
-                ctx.code.add(format!("; merging into output"));
-                let val_ty = func.symbol_type(value)?;
-                let val_ll_ty = self.llvm_type(val_ty)?;
-                let val_ll_sym = llvm_symbol(value);
-                let val_tmp = self.gen_load_var(&val_ll_sym, &val_ll_ty, ctx)?;
-                /* nvvm code of type: store double %t.t14, double addrspace(1)* %t.t13 */
-                unsafe {
-                    ctx.code.add(format!("store {} {}, {} {} ", val_ll_ty, val_tmp,
-                                         NVVM_OUTPUT_ARR_TY.clone().unwrap(), NVVM_OUTPUT_VAL_PTR));
-                }
-            }
-
-            _ => {
-                /* hand it off to the original method */
-                self.gen_statement(statement, func, ctx)?;
-            }
-        }
-        Ok(())
-    }
 
     /// Generate code for a single statement, appending it to the code in a FunctionContext.
     fn gen_statement(&mut self, statement: &Statement, func: &SirFunction, ctx: &mut FunctionContext) -> WeldResult<()> {
@@ -4809,16 +4258,21 @@ impl LlvmGenerator {
                         arg_types.push_str(&arg_str);
                     }
                     arg_types.push_str("%work_t* %cur.work");
-                    /* in the cpu version - the calls to these functions were made from a wrapper
-                     * function (see gen_loop_wrapper_function). This involved boundary checks, and
-                     * choosing between parallel / v/s serial runtime. Here, we directly make the
-                     * calls to the function generated in gen_par_for_functions_nvvm, and the
-                     * continuation function generated by self.gen_top_level_function(sir,
-                     * &sir.funcs[pf.cont]).
+                    /* in the cpu version - the calls to these functions were
+                     * made from a wrapper function (see
+                     * gen_loop_wrapper_function). This involved boundary
+                     * checks, and choosing between parallel v/s serial
+                     * runtime. Here, we directly make the calls to the
+                     * function generated in gen_par_for_functions_nvvm, and
+                     * the continuation function generated by
+                     * self.gen_top_level_function(sir, &sir.funcs[pf.cont]).
                      * TODO: should add the boundary checks here as well. */
 
-                    // Note: we do not generate the continuation function here but just combine it
-                    // with the single function we generated above.
+                    /* FIXME: we do not generate the continuation function here
+                       but just combine it with the single function we
+                       generated above. But this breaks suppport for things
+                       like nested for loops, in which the results were passed
+                       on to a next function */
                     ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", pf.body, arg_types));
                 } else {
                     let params_sorted = get_combined_params(sir, pf);
@@ -4942,6 +4396,641 @@ impl LlvmGenerator {
             "{} = getelementptr [{} x i8], [{} x i8]* {}, i32 0, i32 0",
             local, len, len, global));
         ctx.code.add(format!("call i32 @puts(i8* {})", local));
+    }
+}
+
+/// GPU / NVVM backend. These are the helper functions that generate the nvvm
+/// kernel, which will be compiled to ptx, and executed through cuda.
+impl LlvmGenerator {
+    /// Return the NVVM type name corresponding to a Weld type. So for
+    /// structures, we just return the pointer to the first element of the
+    /// float array.
+    /// FIXME: we should probably not tie this too closely with addrspace
+    /// concepts? Or take in an arg for addrspace?
+    fn nvvm_type(&mut self, ty: &Type) -> WeldResult<String> {
+        let mut base_ty =
+            match *ty {
+                    Scalar(kind) => llvm_scalar_kind(kind).to_string(),
+                    // PN: need to test this.
+                    Struct(ref fields) => {
+                        // TODO: MAKE nvvm version of this function.
+                        if self.struct_names.get(fields) == None {
+                            self.gen_struct_definition(fields)?
+                        }
+                        /* PN: the first argument would a pointer to the underlying data, while second
+                         * argument would be size */
+                        //self.llvm_type(&fields[0]).unwrap().to_string()
+                        self.struct_names.get(fields).unwrap().to_string()
+                    }
+
+                    Vector(ref elem) => {
+                        /* pointer to the element type */
+                        self.llvm_type(elem).unwrap()
+                    }
+
+                    _ => {
+                        return weld_err!("Unsupported type for nvvm {}", print_type(ty))?
+                    }
+                };
+        /* assumptions:
+         *  1. only passing in pointers to nvvm
+         *  2. only in global memory - addrspace(1)
+         * so far both these assumptions seem valid, but might need to make this more flexible.
+         */
+        let addr_space :String = " addrspace(1)*".to_owned();
+        base_ty.push_str(&addr_space);
+        Ok(base_ty)
+    }
+
+    /// similar to the get_arg_str function for llvm code, but nvvm types are
+    /// slightly different.
+    fn get_arg_str_nvvm(&mut self, params_sorted: &BTreeMap<Symbol, Type>, suffix: &str)
+        -> WeldResult<String> {
+        let mut arg_types = String::new();
+        let mut output_str: String = "".to_owned();
+        for (arg, ty) in params_sorted.iter() {
+            /* FIXME: skip everything except vectors for now */
+            match *ty {
+                Vector(_) => {
+                    /* go on to set the argument */
+                }
+                _ => {
+                    continue;
+                }
+            }
+            let arg_str = format!("{} {}{}, ", self.nvvm_type(&ty)?, llvm_symbol(&arg), suffix);
+            arg_types.push_str(&arg_str);
+            // FIXME: we are assuming output is same type as input for now. Should depend on builder
+            // type.
+            if output_str == "" {
+                output_str = format!("{} {}{}", self.nvvm_type(&ty)?, NVVM_OUTPUT_ARR, suffix);
+            }
+        }
+        arg_types.push_str(&output_str);
+        Ok(arg_types)
+    }
+
+    /// Same as gen_function_header for llvm code with a few differences in
+    /// allocations:
+    ///     - Do not allocate function arguments on the stack (as was done in
+    ///     the llvm function generation). Not sure if it is needed for some
+    ///     functionality, but so far it did not seem needed for the gpu code.
+    ///     Besides, it would potentially take up the limited gpu memory (?).
+    ///     - Doesn't allocate all the elements in func.locals because the gpu
+    ///     kernel code is slightly different, e.g., we do not need to allocate
+    ///     builders.
+    fn gen_function_header_nvvm(&mut self, arg_types: &str, func: &SirFunction, ctx: &mut
+                                FunctionContext) -> WeldResult<()> {
+        ctx.alloca_code.add(format!("define void @kernel({}) {{", arg_types));
+        ctx.alloca_code.add(format!("fn.entry:"));
+        // FIXME: where are these getting allocated? Should we be specifying
+        // address space here?
+        for (arg, ty) in func.locals.iter() {
+            match *ty {
+                Scalar( .. ) | Struct( .. ) => {
+                    let arg_str = llvm_symbol(&arg);
+                    let ty_str = self.llvm_type(&ty)?;
+                    ctx.add_alloca(&arg_str, &ty_str)?;
+                }
+                _ => { continue; }
+            }
+        }
+        Ok(())
+    }
+
+    /// Essentially the nvvm backend equivalent of gen_loop_iteration_setup.
+    /// This sets up the boiler-plate code at the top of the kernel function that will be
+    /// executed on the gpu, and loads the elements from the input arrays based
+    /// on the current value of NVVM_IDX.
+    fn gen_kernel_setup_nvvm(&mut self,
+                     par_for: &ParallelForData,
+                     func: &SirFunction,
+                     ctx: &mut FunctionContext) -> WeldResult<()> {
+        assert!(par_for.innermost);
+        ctx.code.add("br label %kernel.setup");
+        ctx.code.add("kernel.setup:");
+        // %idx can now be used to access current elements in the arrays.
+        let (tid_x, block_id_x, block_dim_x) = (ctx.var_ids.next(), ctx.var_ids.next(),
+                                      ctx.var_ids.next());
+        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone
+                             nounwind", tid_x));
+        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone
+                             nounwind", block_id_x));
+        ctx.code.add(format!("{} = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone
+                             nounwind", block_dim_x));
+        let tmp1 = ctx.var_ids.next();
+        ctx.code.add(format!("{} = mul i32 {}, {}", tmp1, block_id_x, block_dim_x));
+        ctx.code.add(format!("{} = add i32 {}, {}", NVVM_IDX, tmp1, tid_x));
+        // Need to set up the appropriate elements for each of the input arrays
+        let mut prev_ref = String::from("undef");
+        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
+        let elem_ty_str = self.llvm_type(&elem_ty)?;
+        for (i, iter) in par_for.data.iter().enumerate() {
+            let inner_elem_ty_str = if par_for.data.len() == 1 {
+                elem_ty_str.clone()
+            } else {
+                match *elem_ty {
+                    Struct(ref v) => self.llvm_type(&v[i])?,
+                    _ => weld_err!("Internal error: invalid element type {}", print_type(elem_ty))?,
+                }
+            };
+            let arr_ty_str = self.nvvm_type(func.params.get(&iter.data).unwrap())?;
+            let arr_elem_tmp_ptr = ctx.var_ids.next();
+            ctx.code.add(format!("{} = getelementptr {}, {} {}, i32 {}", arr_elem_tmp_ptr,
+                                 inner_elem_ty_str, arr_ty_str, llvm_symbol(&iter.data).as_str(),
+                                 NVVM_IDX));
+            let inner_elem_tmp = ctx.var_ids.next();
+            /* note: arr_elem_tmp_ptr is a ptr into the arr, so its type should be same as arr */
+            ctx.code.add(format!("{} = load {}, {} {}", inner_elem_tmp,
+                                 inner_elem_ty_str, arr_ty_str,
+                                 arr_elem_tmp_ptr));
+
+            // checking i == 0, because we only need to do this once.
+            if i == 0 {
+                ctx.code.add(format!("{} = getelementptr {}, {} {}, i32 {}",
+                                     NVVM_OUTPUT_VAL_PTR, inner_elem_ty_str,
+                                     arr_ty_str, NVVM_OUTPUT_ARR, NVVM_IDX));
+                unsafe {
+                    NVVM_OUTPUT_ARR_TY = Some(arr_ty_str.clone());
+                }
+            }
+
+            if par_for.data.len() == 1 {
+                prev_ref.clear();
+                prev_ref.push_str(&inner_elem_tmp);
+            } else {
+                let elem_tmp = ctx.var_ids.next();
+                ctx.code.add(format!("{} = insertvalue {} {}, {} {}, {}",
+                                     elem_tmp, elem_ty_str, prev_ref,
+                                     inner_elem_ty_str, inner_elem_tmp, i));
+                prev_ref.clear();
+                prev_ref.push_str(&elem_tmp);
+            };
+        }
+        let elem_str = llvm_symbol(&par_for.data_arg);
+        /* stores prev_ref in place pointed to by elem_str */
+        ctx.code.add(format!("store {} {}, {}* {}", &elem_ty_str, prev_ref, &elem_ty_str, elem_str));
+
+        Ok(())
+    }
+
+    fn gen_nvvm_kernel(&mut self, par_for: &ParallelForData,sir: &SirProgram,
+                       func: &SirFunction, ctx: &mut FunctionContext,  ptx_ops:
+                       bool, reduction: bool) -> WeldResult<()>
+    {
+        if ptx_ops {
+            /* Generate the kernel (nvvm code) to be run on the gpu. */
+            let gpu_ctx = &mut FunctionContext::new(par_for.innermost);
+            let nvvm_arg_types = self.get_arg_str_nvvm(&func.params, "")?;
+            self.gen_function_header_nvvm(&nvvm_arg_types, func, gpu_ctx)?;
+            self.gen_kernel_setup_nvvm(par_for, func, gpu_ctx)?;
+            /* main kernel body -- should essentially be the same as in the llvm case */
+            gpu_ctx.code.add(format!("br label %b.b{}", func.blocks[0].id));
+            self.gen_function_body_nvvm(sir, func, gpu_ctx)?;
+            /* end the kernel */
+            gpu_ctx.code.add("ret void");
+            gpu_ctx.code.add("}\n\n");
+            /* add the final nvvm annotations about the kernel */
+            let mut arg_types = String::new();
+            let mut output_str: String = "".to_owned();
+            for (arg, ty) in func.params.iter() {
+                match *ty {
+                    Vector(_) => {
+                        /* go on to set the argument */
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+                let arg_str = format!("{} , ", self.nvvm_type(&ty)?);
+                arg_types.push_str(&arg_str);
+                // FIXME: we are assuming output is same type as input for now. Should depend on builder
+                // type.
+                if output_str == "" {
+                    output_str = format!("{} ", self.nvvm_type(&ty)?);
+                }
+            }
+            arg_types.push_str(&output_str);
+            let nvvm_kernel_annotations = NVVM_END_TEMPLATE.replace("ARGS", &arg_types);
+            gpu_ctx.code.add(nvvm_kernel_annotations);
+
+            /* prelude */
+            /* TODO: this has changed in the programmatic compile version */
+            let mut nvvm_prelude_code = CodeBuilder::new();
+            nvvm_prelude_code.add(NVVM_PRELUDE_CODE);
+            nvvm_prelude_code.add("\n");
+            nvvm_prelude_code.add(self.prelude_code.result());
+
+            /* FIXME: temporary, write to file so we can compile it manually */
+            let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
+                                       nvvm_prelude_code.result(),gpu_ctx.alloca_code.result(),
+                                       gpu_ctx.code.result());
+			let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
+            let f = File::create(kernel_file).expect("Unable to create file");
+            let mut f = BufWriter::new(f);
+            f.write_all(code.as_bytes()).expect("Unable to write data");
+
+            /* Compile the kernel to ptx code. */
+            // TODO: compile it, and then save the compiled ptx string
+            // somewhere so don't recompile it?
+
+            /* calls the shell script which would use llvm's CLI to compile the
+             * nvvm file */
+			use std::process::Command;
+			let mut compile_script: String = get_weld_home().unwrap().to_owned();
+			compile_script.push_str("/compile-ptx.sh");
+			Command::new(compile_script)
+            .output()
+            .expect("failed to execute process");
+        }
+        Ok(())
+    }
+
+
+    /// Generate the main kernel code for a program. Called after the data has
+    /// been setup in gen_kernel_setup_nvvm. The main difference with the llvm
+    /// version (gen_function_body) is that we don't call builders (like
+    /// merger, appender).
+    /// @func: usual sir func representation.
+    /// @nvvm_ctx: Context of the current function being generated - which is
+    /// the nvvm code for the given loop that will be executed on the gpu.
+    fn gen_function_body_nvvm(&mut self, sir: &SirProgram, func: &SirFunction,
+                              nvvm_ctx: &mut FunctionContext) -> WeldResult<()>
+    {
+        for b in func.blocks.iter() {
+            nvvm_ctx.code.add(format!("b.b{}:", b.id));
+            for s in b.statements.iter() {
+                self.gen_statement_nvvm(s, func, nvvm_ctx)?;
+            }
+            // FIXME: is this going to be a problem -- what would terminator
+            // conditions for nvvm be?
+            //self.gen_terminator(&b.terminator, sir, func, ctx)?
+        }
+        Ok(())
+    }
+
+    /// Generates the NVVM code corresponding to a single statement. There are
+    /// only two differences compared to the llvm code gen:
+    ///     - UnaryOp's: Here we need to use libdevice functions instead of
+    ///     standard llvm functions.
+    ///     - Merge: This is referring to merging the value into a builder in
+    ///     weld. Here, we just save the value into the appropriate index of
+    ///     the output.
+    fn gen_statement_nvvm(&mut self, statement: &Statement, func: &SirFunction, ctx: &mut
+                          FunctionContext) -> WeldResult<()> {
+        // TODO: might not need this.
+        let ref output = statement.output.clone().unwrap_or(Symbol::new("unused", 0));
+        if self.trace_run {
+            self.gen_puts(&format!("  {}", statement), ctx);
+        }
+        match statement.kind {
+            UnaryOp { op, ref child, } => {
+                ctx.code.add(format!("; {}", statement));
+                let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
+                let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
+                let child_ty = func.symbol_type(child)?;
+                let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
+                if let Scalar(ref ty) = *child_ty {
+                    let res_tmp = ctx.var_ids.next();
+                    let op_name = nvvm_scalar_unaryop(op, ty)?;
+                    ctx.code.add(format!("{} = call {} {}({} {})", res_tmp,
+                            child_ll_ty, op_name, child_ll_ty, child_tmp));
+                    self.gen_store_var(&res_tmp, &output_ll_sym, &output_ll_ty, ctx);
+                } else {
+                    weld_err!("nvvm does not suport simd instructions in Unaryp")?;
+                }
+            }
+
+            Merge { ref builder, ref value } => {
+                /// FIXME: if it is only a reduction, then will we reach this
+                /// point in code or not?
+                /* We are generating code in the kernel for the computed
+                 * ``value`` to be saved into the appropriate index in the
+                 * output (set to NVVM_OUTPUT_VAL_PTR before) */
+                ctx.code.add(format!("; merging into output"));
+                let val_ty = func.symbol_type(value)?;
+                let val_ll_ty = self.llvm_type(val_ty)?;
+                let val_ll_sym = llvm_symbol(value);
+                let val_tmp = self.gen_load_var(&val_ll_sym, &val_ll_ty, ctx)?;
+                /* nvvm code of type: store double %t.t14, double addrspace(1)* %t.t13 */
+                unsafe {
+                    ctx.code.add(format!("store {} {}, {} {} ", val_ll_ty, val_tmp,
+                                         NVVM_OUTPUT_ARR_TY.clone().unwrap(), NVVM_OUTPUT_VAL_PTR));
+                }
+            }
+
+            _ => {
+                /* hand it off to the original method */
+                self.gen_statement(statement, func, ctx)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// GPU / NVVM backend. These are the helper functions that generate the llvm
+/// code to glue the gpu kernel with the rest of the program (set up arguments,
+/// call the cuda function, deal with the returned result etc.)
+impl LlvmGenerator {
+    /// Main entry-point function to generate a 'For' loop for the gpu backend.
+    fn gen_par_for_functions_nvvm(&mut self, par_for: &ParallelForData, sir: &SirProgram,
+                                      func: &SirFunction) -> WeldResult<()> {
+        // If this loop has been visited/generated, just return.
+        // TODO: check if nvvm loop has been generated before, then is it stored correctly?
+        if !self.visited.insert(func.id) {
+            return Ok(());
+        }
+
+        let (ptx_ops, reduction) = self.check_func_reduction(func).unwrap();
+        /* FIXME: don't yet support case where only reduction to be performed
+         * on the gpu */
+        //assert!(ptx_ops);
+
+        /* Generate wrapper function for the kernel. Deals with converting arg
+         * types, allocating memory for output (single value OR full array
+         * depending on builder type), calling c++ with compiled ptx, setting
+         * the result array. */
+        let ctx = &mut FunctionContext::new(par_for.innermost);
+        self.gen_nvvm_wrapper_func(par_for, func, ctx, ptx_ops, reduction);
+        self.gen_nvvm_kernel(par_for, sir, func, ctx, ptx_ops, reduction);
+
+        self.body_code.add("; gonna dump all the nvvm wrapper ctx stuff now");
+        self.body_code.add(&ctx.alloca_code.result());
+        self.body_code.add(&ctx.code.result());
+
+        Ok(())
+    }
+
+    fn check_func_reduction(&mut self, func: &SirFunction) -> WeldResult<((bool, bool))>
+    {
+        /* Check all the statements in the func to figure out what we need to
+         * execute on the gpu:
+         *      - binary ops / unary ops on the full array: we generate the
+         *      relevant ptx code.
+         *      - reductions: we call thrust, either with the input, or if
+         *      there were any previous binary ops / unary ops, then we use the
+         *      output generated from those.
+         */
+        // FIXME: assuming it has to be at least one of these. But can also be a bunch
+        // of ptx ops followed by a reduction.
+        let mut ptx_ops = false; // any full array operations that we generate ptx code for.
+        let mut reduction = false;
+
+        for b in func.blocks.iter() {
+            for s in b.statements.iter() {
+                match s.kind {
+                    UnaryOp { .. } | BinOp { ..} => {
+                        ptx_ops = true;
+                    }
+
+                    Merge { ref builder, ref value } => {
+                        let bld_ty = func.symbol_type(builder)?;
+                        if let Builder(ref bld_kind, _) = *bld_ty {
+                            match *bld_kind {
+                                Merger( .. ) => {
+                                    reduction = true;
+                                }
+
+                                Appender( .. ) => {
+                                    // this is redundant because reduction should already be false.
+                                    reduction = false;
+                                }
+                                _ => {
+                                    return weld_err!("Unsupported builder kind for nvvm")?
+                                }
+                            }
+                        }
+                    }
+
+                    _ => {
+                        // we only care about determining if we need to perform a reduction or not.
+                        continue;
+                    }
+                }
+            }
+        }
+        Ok((ptx_ops, reduction))
+    }
+
+    /// Wrapper function for calling the cuda function (weld_ptx_execute). It
+    /// deals with setting up the arguments as the gpu function expects, and
+    /// setting the returned output as weld expects it to be.
+    fn gen_nvvm_wrapper_func(&mut self, par_for: &ParallelForData, func:
+                             &SirFunction, ctx: &mut FunctionContext,
+                             ptx_ops: bool, reduction: bool) -> WeldResult<()> {
+        // should have same args as the original function.
+        let arg_types = self.get_arg_str(&func.params, ".in")?;
+        self.gen_function_header(&arg_types, func, ctx)?;
+        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
+        let elem_ty_str = self.llvm_type(&elem_ty)?;
+        let mut num_elements :String = "".to_owned();
+        /* Get size of struct ptx_input_arg, and allocate enough space for all
+         * of them. Note: ptx_input_arg is declared in the prelude file. */
+        let input_arg_type = "%ptx_input_arg".to_owned();
+        let (input_size_ptr, input_size, input_alloc_size) =
+            (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1",
+                             &input_size_ptr, &input_arg_type,
+                             &input_arg_type));
+        ctx.code.add(format!("{} = ptrtoint {} * {} to i64", input_size, &input_arg_type,
+                             &input_size_ptr));
+        ctx.code.add(format!("{} = mul i64 {}, {}", &input_alloc_size,
+                             &input_size, par_for.data.len()));
+        let (input_args_tmp, input_args) = (ctx.var_ids.next(), ctx.var_ids.next());
+        /* FIXME: ideally, we want to allocate pinned memory in the host for
+         * the input arrays as that makes cudaMemcpy faster. */
+        ctx.code.add(format!("{} = call i8* @malloc(i64 {})", &input_args_tmp,
+            &input_alloc_size));
+        ctx.code.add(format!("{} = bitcast i8* {} to {}*", &input_args,
+                             &input_args_tmp, &input_arg_type));
+
+        /* It is important to iterate over params as opposed to par_for.data
+         * because right now we are setting up the parameters to be passed in
+         * to weld_ptx_execute. Thus they need to be in the same order as they
+         * are passed in to weld functions so the ptx code we generated would
+         * be appropriate to run on these input arguments */
+        for (i, (arg, ty)) in func.params.iter().enumerate() {
+            /* we only want to pass the vectors from the parameters as arguments to
+             * weld_ptx_execute. These correspond to the elements in par_for.data  */
+            // TODO: this pattern is being used at least three times, find a
+            // way to check it with fewer lines.
+            match *ty {
+                Vector(_) => {
+                    /* go on to set the argument */
+                }
+                _ => {
+                    continue;
+                }
+            }
+            let inner_elem_ty_str = if par_for.data.len() == 1 {
+                elem_ty_str.clone()
+            } else {
+                match *elem_ty {
+                    Struct(ref v) => self.llvm_type(&v[i])?,
+                    _ => weld_err!("Internal error: invalid element type {}",
+                                   print_type(elem_ty))?,
+                }
+            };
+            let arr_llvm_info = self.get_array_llvm_info(func, ctx, arg,
+                                                         inner_elem_ty_str,
+                                                         true)?;
+            /* idx into the original array at iteration %cur.i */
+            let arr_ptr = ctx.var_ids.next();
+            ctx.code.add(format!("{} = extractvalue {} {}, 0", arr_ptr,
+                                 arr_llvm_info.arr_type,
+                                 arr_llvm_info.arr));
+            let inp_i8_ptr = ctx.var_ids.next();
+            ctx.code.add(format!("{} = bitcast {}* {} to i8*", inp_i8_ptr,
+                                 arr_llvm_info.el_type, arr_ptr));
+            num_elements = arr_llvm_info.len;
+
+            let (cur_input_data_ptr, cur_input_size_ptr, cur_input_num_el_ptr)
+                = (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+
+            /* get all the relevant pointers in the current input arg */
+            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32
+                                 0", cur_input_data_ptr, input_arg_type,
+                                 input_arg_type, input_args, i));
+            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32
+                                 1", cur_input_size_ptr, input_arg_type,
+                                 input_arg_type, input_args, i));
+            ctx.code.add(format!("{} = getelementptr {}, {} *{}, i64 {}, i32
+                                 2", cur_input_num_el_ptr, input_arg_type,
+                                 input_arg_type, input_args, i));
+
+            /* storing the correct input array pointer, number of elements, and
+             * size in the current ptx_arg_input */
+            ctx.code.add(format!("store i8 *{}, i8 **{}", inp_i8_ptr, cur_input_data_ptr));
+            ctx.code.add(format!("store i64 {}, i64 *{}", num_elements, cur_input_num_el_ptr));
+
+            /* size = sizeof(elem_ty) * num_elements; */
+            let (inner_elem_size_ptr, inner_elem_size, array_size) =
+                (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+            ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1",
+                                 inner_elem_size_ptr, arr_llvm_info.el_type,
+                                 arr_llvm_info.el_type));
+            ctx.code.add(format!("{} = ptrtoint {} * {} to i64",
+                                 inner_elem_size, arr_llvm_info.el_type,
+                                 inner_elem_size_ptr));
+            ctx.code.add(format!("{} = mul i64 {}, {}", array_size,
+                                 inner_elem_size, num_elements));
+            ctx.code.add(format!("store i64 {}, i64 *{}", array_size,
+                                 cur_input_size_ptr));
+        };
+
+        let i8_input_args_ptr = ctx.var_ids.next();
+        ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_input_args_ptr,
+                             input_arg_type, input_args));
+        ctx.code.add(format!("{} = call i8 *@weld_ptx_execute(i8 *{}, i32 {})",
+                DEVICE_OUTPUT_ARR_PTR, i8_input_args_ptr, par_for.data.len()));
+
+        /* Setting up the output */
+        // TODO: Ideally, we want to be able to generate the output
+        // independently of the input here. But for now, we just consider the
+        // output to have the same properties as the first input.
+
+        let input1 = &par_for.data[0];
+        let elem_ty = func.locals.get(&par_for.data_arg).unwrap();
+        let elem_llvm_ty = self.llvm_type(&elem_ty)?;
+        let input1_elem_ty = if par_for.data.len() == 1 {
+            elem_llvm_ty.clone()
+        } else {
+            match *elem_ty {
+                Struct(ref v) => self.llvm_type(&v[0])?,
+                _ => weld_err!("Internal error: invalid element type {}", print_type(elem_ty))?,
+            }
+        };
+        let input1_llvm_info = self.get_array_llvm_info(func, ctx, &input1.data,
+                                                        input1_elem_ty, true)?;
+        /* Note: we are assuming that the global variable NVVM_OUTPUT_ARR
+         * would already have been set, so we can just copy it back to the
+         * host here / or perform a reduction on it */
+        if !reduction {
+            //self.gen_appender_output_nvvm(ctx, input1_llvm_info);
+            let (output_arr_ptr, output_arr) = (ctx.var_ids.next(), ctx.var_ids.next());
+            let num_elements = input1_llvm_info.len;
+            let output_ty = input1_llvm_info.arr_type;
+            let output_prefix = input1_llvm_info.prefix;
+            let output_elem_ty = input1_llvm_info.el_type;
+
+            ctx.code.add(format!("{} = call {} {}.new(i64 {})", output_arr, output_ty,
+                        output_prefix, num_elements));
+            let i8_output_arr_ptr = "%i8_output_arr_ptr".to_owned();
+            ctx.code.add(format!("{} = extractvalue {} {}, 0", output_arr_ptr,
+                                 output_ty, output_arr));
+            ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_output_arr_ptr,
+                                 output_elem_ty, output_arr_ptr));
+
+            // TODO: decompose this stuff / or avoid recomputing it here since we
+            // already compute it when dealing with inputs.
+            /* size = sizeof(elem_ty) * num_elements; */
+            let (output_elem_size_ptr, output_elem_size, array_size) =
+                (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+            ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1",
+                                 output_elem_size_ptr, output_elem_ty,
+                                 output_elem_ty));
+            ctx.code.add(format!("{} = ptrtoint {} * {} to i64", output_elem_size,
+                                 output_elem_ty, output_elem_size_ptr));
+            ctx.code.add(format!("{} = mul i64 {}, {}", array_size,
+                                 output_elem_size, num_elements));
+            ctx.code.add(format!("call void @weld_copy_dtoh(i8 *{}, i8 *{}, i64 {})",
+                            i8_output_arr_ptr, DEVICE_OUTPUT_ARR_PTR, array_size));
+            // converting the output_arr_ptr to a weld vector so we can set it to the result.
+            self.gen_set_result(ctx, output_ty, output_arr);
+        } else {
+            /* use thrust to generate the reduction output */
+            let result = ctx.var_ids.next();
+            ctx.code.add(format!("{} = call {} @thrust_reduce_wrapper(i8 *{},
+                            i64 {})", result, input1_llvm_info.el_type,
+                            DEVICE_OUTPUT_ARR_PTR, input1_llvm_info.len));
+            self.gen_set_result(ctx, input1_llvm_info.el_type, result);
+        };
+        /* Finalize the function */
+        ctx.code.add("ret void");
+        ctx.code.add("}\n\n");
+        Ok(())
+    }
+
+    /// Assumes DEVICE_OUTPUT_ARR_PTR has the value of the gpu computations.
+    /// Copies the array back to host memory (assuming the output is of same
+    /// type / shape as the first input in par_for), and then sets the weld
+    /// result.
+    /// FIXME: We assume that the output array has the same characteristics
+    /// (type, length) as the first input (thus passing in input1_llvm_info).
+    fn gen_appender_output_nvvm(&mut self, ctx: &mut FunctionContext,
+                                input1_llvm_info: LlvmVecInfo) -> WeldResult<()>
+    {
+        let (output_arr_ptr, output_arr) = (ctx.var_ids.next(), ctx.var_ids.next());
+        let num_elements = input1_llvm_info.len;
+        let output_ty = input1_llvm_info.arr_type;
+        let output_prefix = input1_llvm_info.prefix;
+        let output_elem_ty = input1_llvm_info.el_type;
+
+        ctx.code.add(format!("{} = call {} {}.new(i64 {})", output_arr, output_ty,
+                    output_prefix, num_elements));
+        let i8_output_arr_ptr = "%i8_output_arr_ptr".to_owned();
+        ctx.code.add(format!("{} = extractvalue {} {}, 0", output_arr_ptr,
+                             output_ty, output_arr));
+        ctx.code.add(format!("{} = bitcast {}* {} to i8*", i8_output_arr_ptr,
+                             output_elem_ty, output_arr_ptr));
+
+        // TODO: decompose this stuff / or avoid recomputing it here since we
+        // already compute it when dealing with inputs.
+        /* size = sizeof(elem_ty) * num_elements; */
+        let (output_elem_size_ptr, output_elem_size, array_size) =
+            (ctx.var_ids.next(), ctx.var_ids.next(), ctx.var_ids.next());
+        ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1",
+                             output_elem_size_ptr, output_elem_ty,
+                             output_elem_ty));
+        ctx.code.add(format!("{} = ptrtoint {} * {} to i64", output_elem_size,
+                             output_elem_ty, output_elem_size_ptr));
+        ctx.code.add(format!("{} = mul i64 {}, {}", array_size,
+                             output_elem_size, num_elements));
+        ctx.code.add(format!("call void @weld_copy_dtoh(i8 *{}, i8 *{}, i64 {})",
+                        i8_output_arr_ptr, DEVICE_OUTPUT_ARR_PTR, array_size));
+        // converting the output_arr_ptr to a weld vector so we can set it to the result.
+        self.gen_set_result(ctx, output_ty, output_arr);
+        Ok(())
     }
 }
 
