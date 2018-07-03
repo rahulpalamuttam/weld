@@ -19,7 +19,7 @@ class weldarray(np.ndarray):
     the creation of a new array, which adds to the overhead compared to NumPy
     for initializing arrays)
     '''
-    def __new__(cls, input_array, verbose=True, new_weldobj = True, *args, **kwargs):
+    def __new__(cls, input_array, verbose=False, new_weldobj = True, *args, **kwargs):
         '''
         @input_array: original ndarray from which the new array is derived.
         '''
@@ -154,8 +154,14 @@ class weldarray(np.ndarray):
         a child of self, then new_arr is returned as a weldarray.
         '''
         new_arr = weldarray(new_arr, verbose=self._verbose)
-        # FIXME: Do stuff with views being grandchildren here.
+        # FIXME: using self._eval fucks up bunch of other tests.
         # now let's create the weldarray view with the starts/stops/steps
+        # Note: it is important to compare with self._eval(), instead of self,
+        # because when generating views, we implicitly always evaluate stored
+        # ops on self. Thus, new_arr should be compared with the evaluated
+        # array.
+        # if is_view_child(new_arr.view(np.ndarray), self._eval()):
+
         if is_view_child(new_arr.view(np.ndarray), self.view(np.ndarray)):
             if self._weldarray_view is None:
                 base_array = self
@@ -215,7 +221,10 @@ class weldarray(np.ndarray):
             return self._gen_weldview(ret, idx)
 
         elif isinstance(idx, tuple):
-            ret = self._eval().__getitem__(idx)
+            # FIXME: do we need to evaluate past ops stored? only IF the
+            # generated view will not be sharing memory with parent. Need to
+            # add more tests to ensure this is working as expected.
+            ret = self.view(np.ndarray).__getitem__(idx)
             if isinstance(ret, np.ndarray):
                 return self._gen_weldview(ret, idx)
             else:
@@ -226,9 +235,14 @@ class weldarray(np.ndarray):
         elif isinstance(idx, np.ndarray) or isinstance(idx, list):
             # FIXME: This could be a view if list is contig numbers? Test +
             # update.
-            arr = self._eval()
+
+            # FIXME: before we had this:
+            # arr = self._eval()
             # call ndarray's implementation on it.
-            ret = arr.__getitem__(idx)
+            # ret = arr.__getitem__(idx)
+
+            # based on our tests, does not look like we need to evaluate self.
+            ret = self.view(np.ndarray).__getitem__(idx)
             return weldarray(ret, verbose=self._verbose)
         elif isinstance(idx, int):
             arr = self._eval()
@@ -513,13 +527,12 @@ class weldarray(np.ndarray):
         if output is not None:
             if self._verbose: print('ufunc was supported ', ufunc)
             if isinstance(output, weldarray):
-                # could also have been a single number, e.g., after reductions.
                 output._num_registered_ops += 1
             return output
 
-        return self._handle_numpy(ufunc, method, input_args, outputs, kwargs)
+        return self._handle_NumPy(ufunc, method, input_args, outputs, kwargs)
 
-    def _handle_numpy(self, ufunc, method, input_args, outputs, kwargs):
+    def _handle_NumPy(self, ufunc, method, input_args, outputs, kwargs):
         '''
         Offload executing ufunc to NumPy, typically because there was some
         reason we could not handle it in weld. This could be because of one of
@@ -657,6 +670,9 @@ class weldarray(np.ndarray):
 
         @ret: array updated with weld code, or None.
         '''
+        if self._verbose:
+            print('WARNING: not handling reduce because NumPy seems to be faster')
+
         # input_args[0] must be self so it can be ignored.
         if len(input_args) > 1:
             return None
@@ -664,10 +680,7 @@ class weldarray(np.ndarray):
         if self._verbose: print('in handle reduce')
         if outputs: output = outputs[0]
         else: output = None
-        if 'axis' in kwargs:
-            axis = kwargs['axis']
-        else:
-            axis = None
+        axis = kwargs['axis']
 
         if ufunc.__name__ in wn.BINARY_OPS:
             return self._reduce_op(wn.BINARY_OPS[ufunc.__name__], axis=axis,
@@ -708,6 +721,7 @@ class weldarray(np.ndarray):
         different - weld's evaluate function is only ever called on the parent
         arrays.
         '''
+        print('_eval, code: ', self.weldobj.weld_code)
         # all registered ops will be cleared after this
         self._num_registered_ops = 0
         # Case 1: we are evaluating an in place on in an array. So need to
@@ -742,8 +756,8 @@ class weldarray(np.ndarray):
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
-        print("restype is: ", restype)
         arr = self.weldobj.evaluate(restype, verbose=self._verbose, passes=CUR_PASSES)
+
         if hasattr(arr, '__len__'):
             arr = arr.reshape(self._real_shape)
         else:
@@ -1092,18 +1106,42 @@ class weldarray(np.ndarray):
             return arr1_b, arr2_b
 
         # Scenario 1: Inplace Op
-        if result is not None and result._weldarray_view:
-            # which one of inputs is result?
-            if isinstance(input1, weldarray) and input1.name == result.name:
-                _update_views_binary(result, input2, binop)
-            else:
-                assert input2.name == result.name, 'has to be the case'
-                _update_views_binary(result, input1, binop)
-            return result
+        # if result is not None and result._weldarray_view:
+            # print("scenario 1!!")
+            # # which one of inputs is result?
+            # if isinstance(input1, weldarray) and input1.name == result.name:
+                # _update_views_binary(result, input2, binop)
+            # else:
+                # assert input2.name == result.name, 'has to be the case'
+                # _update_views_binary(result, input1, binop)
+            # return result
+
+        if result is not None:
+            if result._weldarray_view:
+                print("scenario 1!!")
+                # which one of inputs is result?
+                if isinstance(input1, weldarray) and input1.name == result.name:
+                    _update_views_binary(result, input2, binop)
+                else:
+                    assert input2.name == result.name, 'has to be the case'
+                    _update_views_binary(result, input1, binop)
+                return result
+            elif isinstance(result, weldarray):
+                # Note: If it is an inplace op, then result already has an old
+                # weldobject id. But to make the dependencies work right, it
+                # should get an updated weldobject id. So we just update the
+                # weldobj id here.
+                # TODO: add test for this (using the nbody template)
+                new_weldobj = WeldObject(NumpyArrayEncoder(), NumpyArrayDecoder())
+                new_weldobj.update(result.weldobj)
+                new_weldobj.weld_code = result.weldobj.weld_code
+                result.weldobj = new_weldobj
 
         # Scenario 2b: Non-Inplace ops.
         if result is None:
             result = self._get_result()
+
+
         # if it is not None, then result must be a weldarray already - and
         # since we are updating it in place, then we should not call
         # weldarray(result) - or this would change the weldobj.obj_id for the

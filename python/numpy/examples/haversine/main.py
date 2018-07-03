@@ -15,8 +15,8 @@ import pandas as pd
 import os
 
 # for group
-import grizzly.grizzly as gr
-from grizzly.lazy_op import LazyOpResult
+# import grizzly.grizzly as gr
+# from grizzly.lazy_op import LazyOpResult
 
 # ### Read in the data
 
@@ -29,26 +29,26 @@ LONS_NAME = 'lons'
 # Haversine definition
 def haversine(lat1, lon1, lat2, lon2):
 
+    print("len: ", len(lat2))
+
     miles_constant = 3959.0
     start2 = time.time()
 
     # tracking number of operators as a comment above each line
-    lat1, lon1, lat2, lon2 = map(np.deg2rad, [lat1, lon1, lat2, lon2])
-    print("deg2rad took: ", time.time() - start2)
+    # lat1, lon1, lat2, lon2 = map(np.deg2rad, [lat1, lon1, lat2, lon2])
+    lat1 = np.cos((lat1/180.0) * np.pi)
+    lat2 = np.cos((lat2/180.0) * np.pi)
+    lon1 = np.cos((lon1/180.0) * np.pi)
+    lon2 = np.cos((lon2/180.0) * np.pi)
 
     dlat = lat2 - lat1
     dlon = lon2 - lon1
 
     a0 = np.sin(dlat/2.0)
     a1 = np.sin(dlon/2.0)
-
-    print('a0, a1 done')
     a = a0*a0 + np.cos(lat1) * np.cos(lat2) * a1*a1
-    print('returning a...')
-    return a
 
     # c = 2.0 * np.arcsin(np.sqrt(a))
-    # FIXME: temp test.
     c = 2.0 * (np.sqrt(a))
 
     mi = miles_constant * c
@@ -84,13 +84,6 @@ def gen_data2(lat, lon, scale=10):
     generates 2 pairs of arrays so can pass two arrays to havesrine.
     '''
     pass
-
-def generate_lazy_op_list(arrays):
-    ret = []
-    for a in arrays:
-        lazy_arr = LazyOpResult(a.weldobj, a._weld_type, 1)
-        ret.append(lazy_arr)
-    return ret
 
 def compare(R, R2):
 
@@ -155,12 +148,11 @@ def run_haversine_with_scalar(args):
         lat2 = weldarray(lat2)
         lon2 = weldarray(lon2)
         start = time.time()
-        dist2 = haversine(40.671, -73.985, lat2, lon2)
-        if args.use_group:
-            lazy_ops = generate_lazy_op_list([dist2])
-            dist2 = gr.group(lazy_ops).evaluate(True, passes=wn.CUR_PASSES)[0]
-        else:
-            dist2 = dist2.evaluate()
+        # dist2 = haversine(40.671, -73.985, lat2, lon2)
+        lat1 = weldarray(np.random.rand(len(lat2)))
+        lon1 = weldarray(np.random.rand(len(lon2)))
+        dist2 = haversine(lat1, lon1, lat2, lon2)
+        dist2 = dist2.evaluate()
 
         end = time.time()
         print('****************************')
@@ -172,6 +164,7 @@ def run_haversine_with_scalar(args):
 
     if args.use_numpy and args.use_weld:
         compare(dist1, dist2)
+        print "successfully compared the two!"
 
 NUM_ROWS = 1631
 parser = argparse.ArgumentParser(
@@ -184,11 +177,9 @@ parser.add_argument('-n', "--num_elements", type=int, required=True, default=163
                     help=("how much to scale up the orig dataset? Used so we",
                     "can run it on larger data sizes"))
 
-parser.add_argument('-g', "--use_group", type=int, default=0,
-                    help="use group or not")
 parser.add_argument('-p', "--remove_pass", type=str,
                     default="whatever_string", help="will remove the pass containing this str")
-parser.add_argument('-numpy', "--use_numpy", type=int, required=False, default=1,
+parser.add_argument('-numpy', "--use_numpy", type=int, required=False, default=0,
                     help="use numpy or not in this run")
 parser.add_argument('-weld', "--use_weld", type=int, required=False, default=1,
                     help="use weld or not in this run")
