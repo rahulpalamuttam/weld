@@ -146,8 +146,9 @@ def test_simple_unary():
     # print("w3: ", w3)
     # print(np.allclose(n3, w3))
 
-def test_only_reduce():
-    n1, w1 = random_arrays(10, np.float64)
-    w2 = np.sum(w1)
-    print(w2)
+# def test_only_reduce():
+    # n1, w1 = random_arrays(10, np.float64)
+    # w2 = np.sum(w1)
+    # print(w2)
 
+test_simple_unary()

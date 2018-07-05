@@ -38,10 +38,11 @@ runtime.o: runtime.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
 
 weld_cuda_backend.o: weld_cuda_backend.cpp
-	${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
+	#${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
+	nvcc -O3 -Xcompiler -fPIC -std=c++11 -lcuda -c -arch=sm_35 $< -o $@
 
 thrust-helpers.o: thrust-helpers.cu
-	nvcc -O3 -Xcompiler -fPIC -c thrust-helpers.cu -o thrust-helpers.o -arch=sm_35
+	nvcc -O3 -Xcompiler -fPIC -c -arch=sm_35 $< -o $@
 
 weldrt.o: vb.o dict.o merger.o runtime.o inline.o weld_cuda_backend.o gb.o thrust-helpers.o
 	ld -r $^ -o $@

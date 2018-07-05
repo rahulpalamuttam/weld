@@ -1,7 +1,9 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
-#include "cuda.h"
+//#include "cuda.h"
+//#include "cuda/cuda.h"
+#include <cuda.h>
 #include <cuda_runtime.h>
 #include <unistd.h>
 #include <thread>

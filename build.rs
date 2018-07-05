@@ -5,7 +5,22 @@ fn main() {
     let project_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
     // set path so it can find cuda libraries.
-    println!("cargo:rustc-link-search=native=/usr/local/cuda-8.0/lib64");
+
+    let mut cuda_path = match env::var("CUDA_PATH") {
+        Ok(path) => {
+            let path = if path.chars().last().unwrap() != '/' {
+                path + &"/"
+            } else {
+                path
+            };
+            Ok(path)
+        }
+        Err(_) => Err(()),
+    }.unwrap().to_owned();
+    cuda_path.push_str("/lib64");
+    let mut search_string = "cargo:rustc-link-search=native=".to_owned();
+    search_string.push_str(&cuda_path);
+    println!("{}", search_string);
     println!("cargo:rustc-link-lib=dylib=cuda");
     println!("cargo:rustc-link-lib=dylib=cudart");
 
