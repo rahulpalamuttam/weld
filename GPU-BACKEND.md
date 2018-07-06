@@ -13,11 +13,13 @@
 #### Setup and Requirements
 
 * Requires
-    * cuda
-    * pytest (only to run the tests)
+    * CUDA (tested with version 8.0)
+        * set environment variable CUDA_PATH to point to the base installation
+        directory. On dawn this is, ``/usr/local/cuda-8.0''
+    * pytest (for python based tests)
 * We write (and clean up) temporary compilation files to /etc/
-* compile-ptx.sh should be executable
 * WELD_HOME environment variable should be set up
+* WELD_HOME/compile-ptx.sh should be executable
 * Note: To run the NVVM code, ``NVVM_FLAG`` in weld/llvm.rs should be true
 
 ```bash
@@ -75,8 +77,9 @@ Note: there are two separate code generation contexts: the NVVM kernel code
 code that ties it back in with the rest of the weld program, launches the
 kernel, gets the result back etc.
 
-We generate NVVM code, mostly following the descriptions in llvm's [NVPTX
+* We generate NVVM code, mostly following the descriptions in LLVM's [NVPTX
 backend](https://llvm.org/docs/NVPTXUsage.html).
+* Currently, the kernel operates over a single element, at index:
 
 
 ##### Differences from usual Weld code-gen
@@ -97,20 +100,30 @@ A few other minor differences are:
 
 ## TODO
 
-#### Reductions:
+#### Reductions
 
 * currently, we do sum by calling a thrust function on the gpu array generated
 by previous computations, but this is clearly slower in comparison to
 generating a single kernel call. (For instance, thrust's transform_and_reduce
 option performs clearly better than our implementation)
 
-#### Annotations:
+#### Annotations
 
 * Add annotations to each for loop so we can easily add the gpu v/s cpu flag in
 the weld code - perhaps during one of the transformations / or let the user
 specify it.
 
-#### Programmatic Compilation:
+#### Programmatic Compilation
+
+
+#### Choosing between GPU and CPU execution in weld
+
+* First, we should manually experiment with the workloads we already have to
+figure out what the correct behaviour should be.
+
+* Finally, we will potentially need a cost model for the cpu / and gpu inside
+weld. Choosing whether to execute a ``for'' loop on the GPU or CPU could happen
+after all the transformation passes are done.
 
 #### Minor
 
