@@ -13,10 +13,9 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define THREAD_BLOCK_SIZE 712
+#define THREAD_BLOCK_SIZE 512
 
 void checkCudaErrors(CUresult err) {
-  //printf("cuda err = %d\n", (size_t)err);
   if (err != CUDA_SUCCESS) {
     //printf("cuda success failure!!\n");
     //char errMsg[10000];
@@ -83,7 +82,7 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 
     int devMajor, devMinor;
     checkCudaErrors(cuDeviceComputeCapability(&devMajor, &devMinor, device));
-    printf("Device Compute Capability: %d.%d\n", devMajor, devMinor);
+    //printf("Device Compute Capability: %d.%d\n", devMajor, devMinor);
     if (devMajor < 2) {
         std::cerr << "ERROR: Device 0 is not SM 2.0 or greater\n";
     }
@@ -97,15 +96,26 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     std::string str((std::istreambuf_iterator<char>(t)),
                 std::istreambuf_iterator<char>());
 
+    struct timeval start_compile, end_compile, end_ctx, end_mod, diff_compile;
+    gettimeofday(&start_compile, NULL);
     checkCudaErrors(cuCtxCreate(&context, 0, device));
+    gettimeofday(&end_ctx, NULL);
+    timersub(&end_ctx, &start_compile, &diff_compile);
+    printf("CUDA-ctx-create-Timing: %ld.%06ld\n", diff_compile.tv_sec, diff_compile.tv_usec);
+
     checkCudaErrors(cuModuleLoadDataEx(&cudaModule, str.c_str(), 0, 0, 0));
+    gettimeofday(&end_compile, NULL);
     checkCudaErrors(cuModuleGetFunction(&function, cudaModule, "kernel"));
+
+    timersub(&end_compile, &start_compile, &diff_compile);
+    printf("CUDA-Compile-Timing: %ld.%06ld\n", diff_compile.tv_sec, diff_compile.tv_usec);
 
     CUdeviceptr dev_output;
     /* FIXME: this should not be based on input args */
     checkCudaErrors(cuMemAlloc(&dev_output, input_args[0].size));
     CUdeviceptr dev_inputs[num_args];
     for (int i = 0; i < num_args; i++) {
+        printf("copying input %d, of size %d\n", i, input_args[i].size);
         checkCudaErrors(cuMemAlloc(&dev_inputs[i], input_args[i].size));
         checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
     }
@@ -120,14 +130,12 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     unsigned gridSizeY  = 1;
     unsigned gridSizeZ  = 1;
 
-    printf("going to set kernel params\n");
     void *kernel_params[num_args + 1];
     for (int i = 0; i < num_args; i++) {
         kernel_params[i] = (void *) &dev_inputs[i];
     }
     kernel_params[num_args] = (void *) &dev_output;
 
-    printf("Launching kernel\n");
     //// Kernel launch
     struct timeval start, end, diff;
     gettimeofday(&start, NULL);
@@ -141,7 +149,6 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 
     // Retrieve device data
     //checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));
-    printf("size in ptx_execute: %d\n", size);
 
     // Clean-up
     for (int i = 0; i < num_args; i++) {
@@ -161,12 +168,8 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 
 // FIXME: maybe we don't need a separate function for this.
 extern "C" void weld_copy_dtoh(int8_t *host, int8_t *dev, int size) {
-    printf("from weld copy dtoh\n");
-
-    printf("size = %d\n", size);
     // Retrieve device data
+    printf("copying DtoH, size: %d\n", size);
     checkCudaErrors(cuMemcpyDtoH(host, (CUdeviceptr) dev, size));
-    printf("DtoH done!\n");
     checkCudaErrors(cuMemFree((CUdeviceptr) dev));
-    printf("cuMemFree done successfully!!\n");
 };

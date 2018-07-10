@@ -257,3 +257,42 @@ define i64 @i64.nextPower2(i64) {
   %15 = add nsw i64 %14, 1
   ret i64 %15
 }
+
+; ERF implementation for <4 x double> based on https://www.johndcook.com/blog/cpp_erf/
+define <4 x double> @erf256_pd(<4 x double> %iinp) {
+  ; sign for each value in iinp
+  ;%zeros = <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>
+  %j0 = fcmp oge <4 x double> <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00,double -0.000000e+00>, %iinp
+  %j1 = icmp eq <4 x i1> <i1 0, i1 0, i1 0, i1 0>, %j0
+
+  ; now j0 - j1 should give us the sign of each value in iinp, if only these were not bits.
+  %j2 = sext <4 x i1> %j0 to <4 x i32>
+  %j3 = sext <4 x i1> %j1 to <4 x i32>
+  %j4 = sub <4 x i32> %j2, %j3
+  %j5 = sext <4 x i32> %j4 to <4 x i64>
+  ;%sign = bitcast <4 x i64> %j5 to <4 x double>
+  %sign = sitofp <4 x i64> %j5 to <4 x double>
+
+  %i4 = call <4 x double> @llvm.fabs.v4f64(<4 x double> %iinp)
+  %i5 = fmul <4 x double> %i4, <double 3.275911e-01, double 3.275911e-01, double 3.275911e-01, double 3.275911e-01>
+  %i6 = fadd <4 x double> %i5, <double 1.000000e+00, double 1.000000e+00, double 1.000000e+00, double 1.000000e+00>
+  %i7 = fdiv <4 x double> <double 1.000000e+00, double 1.000000e+00, double 1.000000e+00, double 1.000000e+00>, %i6
+  %i8 = fmul <4 x double> %i7, <double 0x3FF0FB844255A12D, double 0x3FF0FB844255A12D, double 0x3FF0FB844255A12D, double 0x3FF0FB844255A12D>
+  %i9 = fadd <4 x double> %i8, <double 0xBFF7401C57014C39, double 0xBFF7401C57014C39, double 0xBFF7401C57014C39, double 0xBFF7401C57014C39>
+  %i10 = fmul <4 x double> %i7, %i9
+  %i11 = fadd <4 x double> %i10, <double 0x3FF6BE1C55BAE157, double 0x3FF6BE1C55BAE157, double 0x3FF6BE1C55BAE157, double 0x3FF6BE1C55BAE157>
+  %i12 = fmul <4 x double> %i7, %i11
+  %i13 = fadd <4 x double> %i12, <double 0xBFD23531CC3C1469, double 0xBFD23531CC3C1469, double 0xBFD23531CC3C1469, double 0xBFD23531CC3C1469>
+  %i14 = fmul <4 x double> %i7, %i13
+  %i15 = fadd <4 x double> %i14, <double 0x3FD04F20C6EC5A7E, double 0x3FD04F20C6EC5A7E, double 0x3FD04F20C6EC5A7E, double 0x3FD04F20C6EC5A7E>
+  %i16 = fmul <4 x double> %i7, %i15
+  %i17 = fmul <4 x double> %iinp, %iinp
+  %i18 = fsub <4 x double> <double -0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>, %i17
+  %i19 = call <4 x double> @llvm.exp.v4f64(<4 x double> %i18)
+  %i20 = fmul <4 x double> %i19, %i16
+  %i21 = fsub <4 x double> <double 1.000000e+00, double 1.000000e+00, double 1.000000e+00, double 1.000000e+00>, %i20
+
+  %i22 = fmul <4 x double> %i21, %sign
+  ret <4 x double> %i22
+}
+

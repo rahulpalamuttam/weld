@@ -721,7 +721,7 @@ class weldarray(np.ndarray):
         different - weld's evaluate function is only ever called on the parent
         arrays.
         '''
-        print('_eval, code: ', self.weldobj.weld_code)
+        print("!!!!!!!!!!!!!!!!!_EVAL!!!!!!!!!!!!!!!!!!!!!!!")
         # all registered ops will be cleared after this
         self._num_registered_ops = 0
         # Case 1: we are evaluating an in place on in an array. So need to

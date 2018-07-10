@@ -12,7 +12,7 @@ from grizzly.lazy_op import LazyOpResult
 
 invsqrt2 = 1.0 #0.707
 
-DEBUG_NVVM = True
+DEBUG_NVVM = False
 
 def get_data(num_els):
     np.random.seed(2592)
@@ -40,14 +40,14 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     http://codereview.stackexchange.com/questions/108533/fastest-possible-cython-for-black-scholes-algorithm
     http://gosmej1977.blogspot.com/2013/02/black-and-scholes-formula.html
     '''
+    size_elem = strike.itemsize
+    total_size = size_elem * len(price) * 5
+    print('total size (bytes) of inputs: ', total_size)
+
     c05 = np.float64(3.0)
     c10 = np.float64(1.5)
     rsig = rate + (vol*vol) * c05
     vol_sqrt = vol * np.sqrt(t)
-
-    # random tries.
-    # vol_sqrt = vol * np.sqrt(price)
-    # vol_sqrt = strike * np.sqrt(price)
 
     d1 = (np.log(price / strike) + rsig * t) / vol_sqrt
     d2 = d1 - vol_sqrt
@@ -59,7 +59,7 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     d1 = c05 + c05 * ss.erf(d1 * invsqrt2)
     d2 = c05 + c05 * ss.erf(d2 * invsqrt2)
 
-    e_rt = np.exp((-rate) * t)
+    e_rt = np.exp((0.0-rate) * t)
 
     # An alternative to using the group operator is to manually evaluate all
     # the intermediate arrays whose values will be reused later in
@@ -68,15 +68,10 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
 
     if isinstance(price, weldarray) and intermediate_eval:
         price = price.evaluate()
-        print("price evaluated!!!!!")
         d1 = d1.evaluate()
-        print("d1 evaluated!!!!!!!")
         d2 = d2.evaluate()
-        print("d2 evaluated!!!!!!!")
         e_rt = e_rt.evaluate()
-        print("ert evaluated!!!!!!!")
         strike = strike.evaluate()
-        print("strike evaluated!!!!!")
 
     call = (price * d1) - (e_rt * strike * d2)
     # put original.

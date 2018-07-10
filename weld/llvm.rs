@@ -4626,6 +4626,8 @@ impl LlvmGenerator {
                                        nvvm_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                        gpu_ctx.code.result());
 			let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
+
+            let start = PreciseTime::now();
             let f = File::create(kernel_file).expect("Unable to create file");
             let mut f = BufWriter::new(f);
             f.write_all(code.as_bytes()).expect("Unable to write data");
@@ -4642,6 +4644,9 @@ impl LlvmGenerator {
 			Command::new(compile_script)
             .output()
             .expect("failed to execute process");
+
+            let end = PreciseTime::now();
+            println!("compiling to ptx file took: {}", start.to(end));
         }
         Ok(())
     }

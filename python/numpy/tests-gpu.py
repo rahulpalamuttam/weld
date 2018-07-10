@@ -115,7 +115,7 @@ def test_dot_product():
         # w4 = w4.evaluate()
         print('w4: ', w4)
 
-        print(np.allclose(n4, w4.view(np.ndarray)))
+        assert(np.allclose(n4, w4.view(np.ndarray)))
 
 def test_simple_unary():
     for t in TYPES:
@@ -126,7 +126,7 @@ def test_simple_unary():
         w2 = np.exp(w1)
         w2 = w2.evaluate()
 
-        print(np.allclose(n2, w2.view(np.ndarray)))
+        assert(np.allclose(n2, w2.view(np.ndarray)))
 
 # def test_reduction_along_axis():
     # n1 = np.random.rand(2,2)
@@ -151,4 +151,34 @@ def test_simple_unary():
     # w2 = np.sum(w1)
     # print(w2)
 
-test_simple_unary()
+def test_inplace_simple():
+    for t in TYPES:
+        n1, w1 = random_arrays(NUM_ELS, t)
+        n2, w2 = random_arrays(NUM_ELS, t)
+        n1 += 5.0
+        w1 += 5.0
+        w1 = w1.evaluate()
+
+        assert (np.allclose(n1, w1.view(np.ndarray)))
+
+        n1 += n2
+        w1 += w2
+        w1 = w1.evaluate()
+
+        assert (np.allclose(n1, w1.view(np.ndarray)))
+
+def test_inplace_2():
+    '''
+    trying to replicate failing scenario from nbody.
+    '''
+    for t in TYPES:
+        n1, w1 = random_arrays(NUM_ELS, t)
+        n2, w2 = random_arrays(NUM_ELS, t)
+        n3, w3 = random_arrays(NUM_ELS, t)
+
+        n1 += n2*n3
+        w1 += w2*w3
+        w1 = w1.evaluate()
+
+        assert (np.allclose(n1, w1.view(np.ndarray)))
+

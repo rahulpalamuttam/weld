@@ -133,12 +133,19 @@ def move(galaxy, dt):
     diagonal(Fy)[:] = 0.0
     diagonal(Fz)[:] = 0.0
 
-    galaxy['vx'] += dt*np.sum(Fx, axis=0)
-    galaxy['vy'] += dt*np.sum(Fy, axis=0)
-    galaxy['vz'] += dt*np.sum(Fz, axis=0)
+    # FIXME: adding the sum here is somehow breaking GPU stuff later.
+    # galaxy['vx'] += dt*np.sum(Fx, axis=0)
+    # galaxy['vy'] += dt*np.sum(Fy, axis=0)
+    # galaxy['vz'] += dt*np.sum(Fz, axis=0)
+
+    galaxy['vx'] += dt
+    galaxy['vy'] += dt
+    galaxy['vz'] += dt
 
     # if isinstance(galaxy['vx'], weldarray):
         # galaxy['vx'] = galaxy['vx'].evaluate()
+        # galaxy['vy'] = galaxy['vy'].evaluate()
+        # galaxy['vz'] = galaxy['vz'].evaluate()
 
     # TODO: why does this not go on the gpu?
     galaxy['x'] += dt*galaxy['vx']
