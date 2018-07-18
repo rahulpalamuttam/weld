@@ -17,7 +17,7 @@ extern "C" void link_libdevice(const char* kernel_str){
   argsv[0] = "./ptxgen";
   argsv[1] = cuda_path_arg.c_str();
   argsv[2] = "-o";
-  argsv[3] = "/tmp/t2.linked.bc";
+  argsv[3] = "t2.linked.bc";
   argsv[4] = NULL;
 
   link(4, argsv, kernel_str);

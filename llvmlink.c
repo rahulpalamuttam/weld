@@ -22,9 +22,11 @@
 #include "llvm/IR/FunctionInfo.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Object/FunctionIndexObjectFile.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -34,13 +36,17 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Transforms/IPO.h"
 
 #include <memory>
 #include <iostream>
 #include <iostream>
 #include <fstream>
 
+namespace llvm { extern FunctionPass *createNVVMReflectPass(const StringMap<int>& Mapping);}
+
 using namespace llvm;
+
 
 extern "C" int link(int argc, const char **argv, const char *kernel_buffer);
 
@@ -249,11 +255,12 @@ int link(int argc, const char **argv, const char* kernel_str) {
   cl::ParseCommandLineOptions(argc, argv, "llvm linker\n");
 
 
-  auto Composite = make_unique<Module>("llvm-link", Context);
-  Linker L(*Composite);
+  llvm::Module Composite("llvm-link", Context);
+  Linker L(Composite);
 
   unsigned Flags = Linker::Flags::None;
   if (Internalize)
+    printf("Internalized");
     Flags |= Linker::Flags::InternalizeLinkedSymbols;
   if (OnlyNeeded)
     Flags |= Linker::Flags::LinkOnlyNeeded;
@@ -269,17 +276,37 @@ int link(int argc, const char **argv, const char* kernel_str) {
     return 1;
   }
 
-  if (verifyModule(*Composite, &errs())) {
+
+  if (verifyModule(Composite, &errs())) {
     errs() << argv[0] << ": error: linked module is broken!\n";
     return 1;
   }
 
+
+  // Run internalize pass
+  llvm::legacy::PassManager PM;
+  const char* ExportList = "kernel";
+  ModulePass* modpass = llvm::createInternalizePass(ExportList);
+  PM.add(modpass);
+  
+  // NVVM Reflect Pass
+  llvm::StringMap<int> reflect_mapping;
+  reflect_mapping[llvm::StringRef("__CUDA_FTZ")] = 1;
+  PM.add(createNVVMReflectPass(reflect_mapping));
+
+  // O3 pass TODO
+  
+  PM.run(Composite);
+
+  
+
+  
   if (Verbose) errs() << "Writing bitcode...\n";
 
   if (OutputAssembly) {
-    Composite->print(Out.os(), nullptr, PreserveAssemblyUseListOrder);
+    Composite.print(Out.os(), nullptr, PreserveAssemblyUseListOrder);
   } else if (Force || !CheckBitcodeOutputToConsole(Out.os(), true)) {
-    WriteBitcodeToFile(Composite.get(), Out.os(), PreserveBitcodeUseListOrder);
+    WriteBitcodeToFile(&Composite, Out.os(), PreserveBitcodeUseListOrder);
   } else {
   }
   // Declare success.
